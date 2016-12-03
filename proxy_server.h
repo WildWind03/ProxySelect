@@ -31,6 +31,9 @@ public:
     void start();
     void stop();
 
+    int my_header_field_callback(http_parser* parser1, const char * header, size_t size);
+    static int my_header_field_callback_static(http_parser* parser1, const char * header, size_t size);
+
     virtual ~proxy_server();
 };
 

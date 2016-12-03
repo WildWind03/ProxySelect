@@ -9,16 +9,18 @@
 #include "proxy_server.h"
 #include "proxy_not_created_exception.h"
 
-int my_header_field_callback(http_parser *parser1, const char *header, size_t size);
 
 proxy_server::proxy_server(int port) {
     is_stop = false;
+
     http_request = (char*) malloc(MAX_CAPACITY_OF_HTTP_REQUEST);
     parser = (http_parser*) malloc(sizeof(http_parser));
     http_parser_settings1 = (http_parser_settings*) malloc(sizeof(http_parser_settings));
 
     http_parser_init(parser, HTTP_REQUEST);
-    http_parser_settings1->on_header_field = my_header_field_callback;
+
+    parser->data = this;
+    http_parser_settings1->on_header_field = my_header_field_callback_static;
 
     if (port <= 0 || port > MAX_VALUE_FOR_PORT) {
         throw std::invalid_argument("Port must be positive and less than " + MAX_VALUE_FOR_PORT);
@@ -31,32 +33,41 @@ proxy_server::proxy_server(int port) {
         throw proxy_not_created_exception("Socket system call return error");
     }
 
+    std::cout << "Socket is created!" << std::endl;
+
     struct sockaddr_in sockaddr_in1;
     sockaddr_in1.sin_family = AF_INET;
-    sockaddr_in1.sin_port = (in_port_t ) port;
-    in_addr in_addr1;
-    inet_aton(BIND_IP, &in_addr1);
-    sockaddr_in1.sin_addr = in_addr1;
+    sockaddr_in1.sin_port = htons(port);
+    sockaddr_in1.sin_addr.s_addr = inet_addr(BIND_IP);
 
     int result_of_binding = bind(socketFd, (struct sockaddr *) &sockaddr_in1, sizeof(sockaddr_in1));
     if (0 != result_of_binding) {
-        throw new proxy_not_created_exception("Can't bind socket");
+        throw proxy_not_created_exception("Can't bind socket");
     }
+
+    std::cout << "The socket is binded!" << std::endl;
 
     int result_of_listening_socket = listen(socketFd, MAX_COUNT_OF_PENDING_REQUESTS);
     if (0 != result_of_listening_socket) {
         throw new proxy_not_created_exception("Can't listen on the socket");
     }
+
+    std::cout << "Socket started listening" << std::endl;
 }
 
 proxy_server::~proxy_server() {
     free(http_request);
     free(parser);
+    free(http_parser_settings1);
 }
 
 void proxy_server::start() {
+    std::cout << "Proxy server start working" << std::endl;
+
     while (!is_stop) {
         size_t count_of_clients = sockets_we_wait_for_request.size();
+        std::cout << "Count of clients: " << count_of_clients << std::endl;
+
         struct pollfd * poll_fds = (struct pollfd*) malloc(sizeof(struct pollfd*) * (count_of_clients + 1));
         poll_fds[0].events = POLLIN;
         poll_fds[0].fd = socketFd;
@@ -66,6 +77,8 @@ void proxy_server::start() {
             poll_fds[1].fd = iter.first;
         }
 
+        std::cout << "Before polling" << std::endl;
+        std::cout << port << std::endl;
         while (0 == poll(poll_fds, count_of_clients + 1, TIME_TO_BE_BLOCKED_IN_POLL)) {
             if (is_stop) {
                 free(poll_fds);
@@ -73,7 +86,11 @@ void proxy_server::start() {
             }
         }
 
+        std::cout << "Something happened while polling!" << std::endl;
+
         if (poll_fds[0].revents == POLLIN) {
+            std::cout << "Accept Event!" << std::endl;
+
             struct sockaddr_in sockaddr_in1;
             socklen_t socklen;
 
@@ -94,7 +111,7 @@ void proxy_server::start() {
     }
 }
 
-int my_header_field_callback(http_parser *parser1, const char *header, size_t size) {
+int proxy_server::my_header_field_callback(http_parser *parser1, const char *header, size_t size) {
     if (parser1 -> method != HTTP_GET) {
         std::cerr << "The qequest is not a GET request" << std::endl;
         return -1;
@@ -112,6 +129,11 @@ int my_header_field_callback(http_parser *parser1, const char *header, size_t si
 
 void proxy_server::stop() {
     is_stop = true;
+}
+
+int proxy_server::my_header_field_callback_static(http_parser *parser1, const char *header, size_t size) {
+    proxy_server *proxyServer = (proxy_server*) parser1 -> data;
+    return proxyServer->my_header_field_callback(parser1, header, size);
 }
 
 
