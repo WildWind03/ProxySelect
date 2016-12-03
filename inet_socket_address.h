@@ -8,11 +8,11 @@
 #include <string>
 
 
-class InetSocketAddress {
+class inet_socket_address {
     int port;
     std::string ip;
 public:
-    InetSocketAddress(int port, std::string ip) {
+    inet_socket_address(int port, std::string ip) {
         this->ip = ip;
         this->port = port;
     }
