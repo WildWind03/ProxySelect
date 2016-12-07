@@ -2,7 +2,7 @@
 #define PROXY_PROXTSERVER_H
 
 #include <map>
-#include "inet_socket_address.h"
+#include "client.h"
 
 class proxy_server {
 
@@ -18,14 +18,14 @@ class proxy_server {
     int is_stop;
     int port;
     int socketFd;
-    std::map<int, inet_socket_address> sockets_we_wait_for_request;
-    std::map<inet_socket_address, int> sockets_we_wait_for_response;
-    std::map<inet_socket_address, int> sockets_we_want_to_request_to;
+    std::map<int, client> sockets_we_wait_for_request;
+    std::map<client, int> sockets_we_wait_for_response;
+    std::map<client, int> sockets_we_want_to_request_to;
 
     char* http_request;
-    //http_parser *parser;
-    //http_parser_settings *http_parser_settings1;
 
+    void onGetRequestReceived(std::string uri, std::string request);
+    int hostname_to_ip(char* ip, const char* hostname);
 public:
     proxy_server() = delete;
     proxy_server(const proxy_server & proxy_server1) = delete;
@@ -34,16 +34,8 @@ public:
     void start();
     void stop();
 
-   /* int my_header_field_callback(http_parser* parser1, const char * header, size_t size);
-    static int my_header_field_callback_static(http_parser* parser1, const char * header, size_t size);
-
-    int my_url_callback(http_parser* parser1, const char * header, size_t size);
-    static int my_url_callback_static(http_parser* parser1, const char * header, size_t size);
-
-    static void handle_kill_static(int sigNum);
-    */
-
     virtual ~proxy_server();
+
 };
 
 #endif //PROXY_PROXTSERVER_H

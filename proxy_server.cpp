@@ -6,9 +6,11 @@
 #include <iostream>
 #include <unistd.h>
 #include <csignal>
+#include <netdb.h>
 
 #include "proxy_server.h"
 #include "proxy_not_created_exception.h"
+#include "http_parser.h"
 
 //int proxy_server::socketFdStatic;
 
@@ -16,14 +18,6 @@ proxy_server::proxy_server(int port) {
     is_stop = false;
 
     http_request = (char*) malloc(MAX_CAPACITY_OF_HTTP_REQUEST);
-    //parser = (http_parser*) malloc(sizeof(http_parser));
-    //http_parser_settings1 = (http_parser_settings*) malloc(sizeof(http_parser_settings));
-
-    //http_parser_init(parser, HTTP_REQUEST);
-
-    //parser->data = this;
-    //http_parser_settings1->on_header_field = my_header_field_callback_static;
-    //http_parser_settings1->on_url = my_url_callback_static;
 
     if (port <= 0 || port > MAX_VALUE_FOR_PORT) {
         throw std::invalid_argument("Port must be positive and less than " + MAX_VALUE_FOR_PORT);
@@ -35,8 +29,6 @@ proxy_server::proxy_server(int port) {
     int flag = 1;
     setsockopt(socketFd,SOL_SOCKET,SO_REUSEADDR,&flag,sizeof(int));
 
-    //proxy_server::socketFdStatic = socketFd;
-    //signal(SIGINT, proxy_server::handle_kill_static);
 
     if (-1 == socketFd) {
         throw proxy_not_created_exception("Socket system call return error");
@@ -66,8 +58,6 @@ proxy_server::proxy_server(int port) {
 
 proxy_server::~proxy_server() {
     free(http_request);
-    //free(parser);
-    //free(http_parser_settings1);
 }
 
 void proxy_server::start() {
@@ -101,17 +91,56 @@ void proxy_server::start() {
                 std::cout << "Can't accept new connection" << std::endl;
             } else {
                 std::cout << "New connection accepted!" << std::endl;
-                sockets_we_wait_for_request.insert(std::pair<int, inet_socket_address>(newFd, inet_socket_address(sockaddr_in1.sin_port, inet_ntoa (sockaddr_in1.sin_addr))));
+                sockets_we_wait_for_request.insert(std::pair<int, client>(newFd, client(sockaddr_in1.sin_port, inet_ntoa (sockaddr_in1.sin_addr))));
             }
         }
 
         for (int i = 1; i < count_of_clients + 1; i++) {
             if (poll_fds[i].revents == POLLIN) {
+                client client1 = sockets_we_wait_for_request.find(poll_fds[i].fd).operator*().second;
+                size_t max_size_to_read = client1.get_max_data_to_read();
+
                 ssize_t count_of_received_bytes = recv(poll_fds[i].fd, http_request, MAX_CAPACITY_OF_HTTP_REQUEST, 0);
-                std::cout << http_request << std::endl;
-                //http_parser_execute(parser, http_parser_settings1, http_request, (size_t) count_of_received_bytes);
-                close(poll_fds[i].fd);
-                sockets_we_wait_for_request.erase(poll_fds[i].fd);
+
+                if (count_of_received_bytes > max_size_to_read) {
+                    std::cout << "Too much data" << std::endl;
+                    close(poll_fds[i].fd);
+                    sockets_we_wait_for_request.erase(poll_fds[i].fd);
+                }
+
+                if (0 == count_of_received_bytes) {
+                    std::cout << "The connection is closed!" << std::endl;
+                    close(poll_fds[i].fd);
+                    sockets_we_wait_for_request.erase(poll_fds[i].fd);
+                } else {
+                    client1.add_new_data(http_request, (size_t) count_of_received_bytes);
+
+                    if (client1.is_correct_request()) {
+                        std::cout << "The request is got" << std::endl;
+
+                        http_parser http_parser1(client1.get_request().c_str());
+
+                        int major_v = http_parser1.get_major_version();
+                        int minor_v = http_parser1.get_minor_version();
+
+                        if (major_v != 1 || minor_v != 0) {
+                            std::cout << "The version of http protocol is not supported" << std::endl;
+                        } else {
+                            int request_type = http_parser1.get_request_type();
+                            switch (request_type) {
+                                case http_parser::GET_REQUEST :
+                                    onGetRequestReceived(http_parser1.get_host(), client1.get_request());
+                                    break;
+                                default:
+                                    std::cout << "The type of request is not supported" << std::endl;
+                                    break;
+                            }
+                        }
+
+                        close(poll_fds[i].fd);
+                        sockets_we_wait_for_request.erase(poll_fds[i].fd);
+                    }
+                }
             }
         }
 
@@ -119,64 +148,22 @@ void proxy_server::start() {
     }
 }
 
-/*int proxy_server::my_header_field_callback(http_parser *parser1, const char *header, size_t size) {
-    if (parser1 -> http_major != 1 || parser1 -> http_minor != 0) {
-        std::cerr << "The version is not supported: " << parser1 -> http_major << "." << parser1 -> http_minor << std::endl;
-        return 0;
-    }
-
-    if (parser1 -> method != HTTP_GET) {
-        std::cerr << "The request is not a GET request" << std::endl;
-        return 0;
-    }
-
-
-    /*std::cout << "Handle get request with appropriate http version" << std::endl;
-    std::cout << header << std::endl;
-
-    http_parser_url http_parser_url1;
-    http_parser_url_init(&http_parser_url1);
-    http_parser_parse_url()
-     */
-
-
-    //std::cout << "Handle new byte message! Header: " << header << std::endl;
-
-    //return 0;
-//}
-
 void proxy_server::stop() {
     is_stop = true;
 }
 
-/*int proxy_server::my_header_field_callback_static(http_parser *parser1, const char *header, size_t size) {
-    proxy_server *proxyServer = (proxy_server*) parser1 -> data;
-    return proxyServer->my_header_field_callback(parser1, header, size);
+void proxy_server::onGetRequestReceived(std::string host, std::string request) {
+    std::cout << host.c_str() << std::endl;
+    addrinfo *res;
+    getaddrinfo(host.c_str(), NULL, NULL, &res);
+    char ip_address[30];
+    getnameinfo(res->ai_addr, res->ai_addrlen, ip_address, NI_MAXHOST, NULL, 0, NI_NUMERICHOST);
+    std::cout << ip_address << std::endl;
 }
 
-void proxy_server::handle_kill_static(int sigNum) {
-    close(socketFdStatic);
-}
-
-int proxy_server::my_url_callback_static(http_parser *parser1, const char *url, size_t size) {
-    proxy_server *proxyServer = (proxy_server*) parser1 -> data;
-    return proxyServer -> my_url_callback(parser1, url, size);
-}
-
-int proxy_server::my_url_callback(http_parser *parser1, const char *url, size_t size) {
-    if (parser1 -> http_major != 1 || parser1 -> http_minor != 0) {
-        std::cerr << "The version is not supported: " << parser1 -> http_major << "." << parser1 -> http_minor << std::endl;
-        return 0;
-    }
-
-    if (parser1 -> method != HTTP_GET) {
-        std::cerr << "The request is not a GET request" << std::endl;
-        return 0;
-    }
-
+int proxy_server::hostname_to_ip(char *ip, const char *hostname) {
     return 0;
 }
- */
 
 
 

@@ -14,6 +14,7 @@ class http_parser {
     std::string uri;
     int major_version;
     int minor_version;
+    std::string host;
 
 public:
     const static int GET_REQUEST = 0;
@@ -31,6 +32,10 @@ public:
         }
 
         stringstream >> uri;
+
+        size_t start = uri.find('/') + 2;
+        size_t end = uri.find('/', start);
+        host = uri.substr(start, end - start);
 
         std::string protocol_version;
         stringstream >> protocol_version;
@@ -54,6 +59,10 @@ public:
 
     std::string get_uri() {
         return uri;
+    }
+
+    std::string get_host() {
+        return host;
     }
 
     int get_major_version() {
