@@ -27,7 +27,7 @@ proxy_server::proxy_server(int port) {
     socketFd = socket(AF_INET, SOCK_STREAM, 0);
 
     int flag = 1;
-    setsockopt(socketFd,SOL_SOCKET,SO_REUSEADDR,&flag,sizeof(int));
+    setsockopt(socketFd,SOL_SOCKET,SO_REUSEADDR, &flag, sizeof(int));
 
 
     if (-1 == socketFd) {
@@ -64,13 +64,13 @@ void proxy_server::start() {
     std::cout << "Proxy server start working" << std::endl;
 
     while (!is_stop) {
-        size_t count_of_clients = sockets_we_wait_for_request.size();
+        size_t count_of_clients = clients.size();
 
         struct pollfd * poll_fds = (struct pollfd*) malloc(sizeof(struct pollfd*) * (count_of_clients + 1));
         poll_fds[0].events = POLLIN;
         poll_fds[0].fd = socketFd;
 
-        for (auto & iter : sockets_we_wait_for_request) {
+        for (auto & iter : clients) {
             poll_fds[1].events = POLLIN;
             poll_fds[1].fd = iter.first;
         }
@@ -91,13 +91,13 @@ void proxy_server::start() {
                 std::cout << "Can't accept new connection" << std::endl;
             } else {
                 std::cout << "New connection accepted!" << std::endl;
-                sockets_we_wait_for_request.insert(std::pair<int, client>(newFd, client(sockaddr_in1.sin_port, inet_ntoa (sockaddr_in1.sin_addr))));
+                clients.insert(std::pair<int, client>(newFd, client(sockaddr_in1.sin_port, inet_ntoa (sockaddr_in1.sin_addr))));
             }
         }
 
         for (int i = 1; i < count_of_clients + 1; i++) {
             if (poll_fds[i].revents == POLLIN) {
-                client client1 = sockets_we_wait_for_request.find(poll_fds[i].fd).operator*().second;
+                client client1 = clients.find(poll_fds[i].fd).operator*().second;
                 size_t max_size_to_read = client1.get_max_data_to_read();
 
                 ssize_t count_of_received_bytes = recv(poll_fds[i].fd, http_request, MAX_CAPACITY_OF_HTTP_REQUEST, 0);
@@ -105,13 +105,13 @@ void proxy_server::start() {
                 if (count_of_received_bytes > max_size_to_read) {
                     std::cout << "Too much data" << std::endl;
                     close(poll_fds[i].fd);
-                    sockets_we_wait_for_request.erase(poll_fds[i].fd);
+                    clients.erase(poll_fds[i].fd);
                 }
 
                 if (0 == count_of_received_bytes) {
                     std::cout << "The connection is closed!" << std::endl;
                     close(poll_fds[i].fd);
-                    sockets_we_wait_for_request.erase(poll_fds[i].fd);
+                    clients.erase(poll_fds[i].fd);
                 } else {
                     client1.add_new_data(http_request, (size_t) count_of_received_bytes);
 
@@ -138,7 +138,7 @@ void proxy_server::start() {
                         }
 
                         close(poll_fds[i].fd);
-                        sockets_we_wait_for_request.erase(poll_fds[i].fd);
+                        clients.erase(poll_fds[i].fd);
                     }
                 }
             }
@@ -153,16 +153,45 @@ void proxy_server::stop() {
 }
 
 void proxy_server::onGetRequestReceived(std::string host, std::string request) {
-    std::cout << host.c_str() << std::endl;
+    int server_socket_fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (-1 == server_socket_fd) {
+        std::cout << "Can not create socket" << std::endl;
+        return;
+    }
+
+    std::string ip = hostname_to_ip(host);
+
+    struct sockaddr_in sockaddr_in1;
+    sockaddr_in1.sin_family = AF_INET;
+    sockaddr_in1.sin_port = htons(HTTP_PORT);
+    sockaddr_in1.sin_addr.s_addr = inet_addr(ip.c_str());
+
+    int connect_result = connect(server_socket_fd, (struct sockaddr *) &sockaddr_in1, sizeof(sockaddr_in1));
+
+    if (-1 == connect_result) {
+        std::cout << "Can not connect to " + ip << std::endl;
+        close(server_socket_fd);
+        return;
+    }
+
+    /*ssize_t count_of_send_data = send(server_socket_fd, request.c_str(), request.size(), NULL);
+    if (count_of_send_data != request.size()) {
+        std::cout << "Error while sending message" << std::endl;
+    } else {
+        std::cout << "The request was successfully sent to the server" << std::endl;
+
+    }*/
+
+    close(server_socket_fd);
+}
+
+std::string proxy_server::hostname_to_ip(std::string host) {
     addrinfo *res;
     getaddrinfo(host.c_str(), NULL, NULL, &res);
     char ip_address[30];
     getnameinfo(res->ai_addr, res->ai_addrlen, ip_address, NI_MAXHOST, NULL, 0, NI_NUMERICHOST);
-    std::cout << ip_address << std::endl;
-}
 
-int proxy_server::hostname_to_ip(char *ip, const char *hostname) {
-    return 0;
+    return std::string(ip_address);
 }
 
 

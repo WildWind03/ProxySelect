@@ -3,11 +3,9 @@
 
 #include <map>
 #include "client.h"
+#include "cache_storage.h"
 
 class proxy_server {
-
-    static int socketFdStatic;
-
     const int MAX_VALUE_FOR_PORT = 20000;
     const int MAX_COUNT_OF_PENDING_REQUESTS = 100;
     const char *BIND_IP = "127.0.0.1";
@@ -18,14 +16,12 @@ class proxy_server {
     int is_stop;
     int port;
     int socketFd;
-    std::map<int, client> sockets_we_wait_for_request;
-    std::map<client, int> sockets_we_wait_for_response;
-    std::map<client, int> sockets_we_want_to_request_to;
+    std::map<int, client> clients;
 
     char* http_request;
 
     void onGetRequestReceived(std::string uri, std::string request);
-    int hostname_to_ip(char* ip, const char* hostname);
+    std::string hostname_to_ip(std::string string);
 public:
     proxy_server() = delete;
     proxy_server(const proxy_server & proxy_server1) = delete;
