@@ -10,7 +10,7 @@
 #include <iostream>
 #include "exception_invalid_http_data.h"
 
-class http_parser {
+class http_request_parser {
     int request_type;
     std::string uri;
     int major_version;
@@ -21,7 +21,7 @@ public:
     const static int GET_REQUEST = 0;
     const static int OTHER_REQUEST = 1;
 
-    http_parser(const char* request) {
+    http_request_parser(const char* request) {
         std::stringstream stringstream(request);
 
         std::string request_type_str;

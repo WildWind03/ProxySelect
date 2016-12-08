@@ -16,6 +16,7 @@ class proxy_server {
     int port;
     int socket_fd;
     std::map<int, request_base*> requests;
+    cache_storage *cache_storage1;
 
     void onGetRequestReceived(std::string uri, std::string request, size_t size);
     std::string hostname_to_ip(std::string string);

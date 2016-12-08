@@ -10,10 +10,31 @@
 #include "request_enum.h"
 
 class request_base {
-    bool is_active = true;
+    bool selectable = true;
     int socket_fd;
     int port;
     std::string ip;
+
+protected:
+    bool is_finished_request(size_t count_of_received_bytes, size_t current_pos_in_request, char* request) {
+        size_t start_pos_for_checking_for_end_of_request;
+        size_t length;
+
+        if (current_pos_in_request >= 3 ) {
+            start_pos_for_checking_for_end_of_request = current_pos_in_request - 3;
+            length = count_of_received_bytes + 3;
+        } else {
+            start_pos_for_checking_for_end_of_request = 0;
+            length = count_of_received_bytes;
+        }
+
+        std::string string(request + start_pos_for_checking_for_end_of_request, length);
+
+        char end_of_request[] = {'\r', '\n', '\r', '\n'};
+        size_t pos_of_end = string.find(end_of_request);
+
+        return pos_of_end != string.length();
+    }
 
 public:
 
@@ -23,12 +44,12 @@ public:
         this -> ip = ip;
     }
 
-    void change_activity(bool new_activity) {
-        this -> is_active = new_activity;
+    void set_selectable(bool selectable) {
+        this -> selectable = selectable;
     }
 
-    bool is_active_request() {
-        return is_active;
+    bool is_selectable() {
+        return selectable;
     }
 
     int get_port() {

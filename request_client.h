@@ -9,7 +9,7 @@
 #include "exception_too_much_data.h"
 #include "exception_connection_closed.h"
 #include "exception_read.h"
-#include "http_parser.h"
+#include "http_request_parser.h"
 #include "exception_not_supported_request.h"
 #include "cache_storage.h"
 
@@ -26,32 +26,11 @@ class request_client : public request_base {
     size_t current_pos_in_request = 0;
 
     bool is_read = true;
-    bool is_selectable = false;
 
-    int pos_in_cache_record = 0;
+    size_t pos_in_cache_record = 0;
     std::string url;
-    cache_storage cache;
+    cache_storage *cache;
     std::string host;
-
-    bool is_finished_request(size_t count_of_received_bytes) {
-        size_t start_pos_for_checking_for_end_of_request;
-        size_t length;
-
-        if (current_pos_in_request >= 3 ) {
-            start_pos_for_checking_for_end_of_request = current_pos_in_request - 3;
-            length = count_of_received_bytes + 3;
-        } else {
-            start_pos_for_checking_for_end_of_request = 0;
-            length = count_of_received_bytes;
-        }
-
-        std::string string(request + start_pos_for_checking_for_end_of_request, length);
-
-        char end_of_request[] = {'\r', '\n', '\r', '\n'};
-        size_t pos_of_end = string.find(end_of_request);
-
-        return pos_of_end != string.length();
-    }
 
 public:
     request_client(int socket_fd, std::string ip, int port) : request_base(socket_fd, port, ip) {
@@ -73,46 +52,44 @@ public:
                 std::cout << "The connection is closed!" << std::endl;
                 throw exception_connection_closed(
                         "The connection with " + get_ip() + ":" + std::to_string(get_port()) + " is closed");
-            } else {
+            }
+            if (is_finished_request(count_of_received_bytes, current_pos_in_request, request)) {
+                //std::cout << "The request is received!" << std::endl;
 
-                if (is_finished_request(count_of_received_bytes)) {
-                    //std::cout << "The request is received!" << std::endl;
+                http_request_parser http_parser1(request);
 
-                    http_parser http_parser1(request);
+                int major_v = http_parser1.get_major_version();
+                int minor_v = http_parser1.get_minor_version();
 
-                    int major_v = http_parser1.get_major_version();
-                    int minor_v = http_parser1.get_minor_version();
+                url = http_parser1.get_uri();
+                host = http_parser1.get_host();
 
-                    url = http_parser1.get_uri();
-                    host = http_parser1.get_host();
-
-                    if (major_v != 1 || minor_v != 0) {
-                        std::cout << "The version of http protocol is not supported" << std::endl;
-                    } else {
-                        int request_type = http_parser1.get_request_type();
-                        switch (request_type) {
-                            case http_parser::GET_REQUEST :
-                                return request_enum::READ_FROM_CLIENT_FINISHED;
-                            default:
-                                //std::cout << "The type of request is not supported" << std::endl;
-                                throw exception_not_supported_request("Type of request is not GET");
-                        }
-                    }
+                if (major_v != 1 || minor_v != 0) {
+                    std::cout << "The version of http protocol is not supported" << std::endl;
                 } else {
-                    return request_enum::READ;
+                    int request_type = http_parser1.get_request_type();
+                    switch (request_type) {
+                        case http_request_parser::GET_REQUEST :
+                            return request_enum::READ_FROM_CLIENT_FINISHED;
+                        default:
+                            //std::cout << "The type of request is not supported" << std::endl;
+                            throw exception_not_supported_request("Type of request is not GET");
+                    }
                 }
+            } else {
+                return request_enum::READ;
             }
 
             return request_enum::READ;
         } else {
-            auto data = cache.get_data_by_url(url);
-            size_t cur_length = *data.length;
+            auto data = cache -> get_not_streaming_data_by_url(url);
+            size_t cur_length = data -> length;
 
             if (pos_in_cache_record >= cur_length) {
-                is_selectable = false;
+                set_selectable(false);
                 return request_enum::NOTHING_TO_WRITE_TO_CLIENT;
             } else {
-                ssize_t count_of_sent_chars = send(get_socket(), data.data + pos_in_cache_record, cur_length - pos_in_cache_record, 0);
+                ssize_t count_of_sent_chars = send(get_socket(), data -> data + pos_in_cache_record, cur_length - pos_in_cache_record, 0);
 
                 if (-1 == count_of_sent_chars) {
                     throw exception_read("Error while sending data to client");
@@ -120,8 +97,8 @@ public:
 
                 pos_in_cache_record += count_of_sent_chars;
 
-                if (*data.isFinished) {
-                    if (*data.length == pos_in_cache_record) {
+                if (data -> is_finished) {
+                    if (data -> length == pos_in_cache_record) {
                         return request_enum::WRITE_TO_CLIENT_FINISHED;
                     } else {
                         return request_enum::WRITE;
@@ -141,18 +118,11 @@ public:
         return current_pos_in_request;
     }
 
-    void change_to_write_mode(cache_storage cache) {
+    void change_to_write_mode(cache_storage *cache) {
         is_read = false;
         this -> cache = cache;
     }
 
-    void notify_new_data() {
-        this -> is_selectable = true;
-    }
-
-    bool can_be_selected() {
-        return this -> is_selectable;
-    }
 
     std::string get_url() {
         return url;

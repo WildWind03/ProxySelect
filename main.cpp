@@ -3,7 +3,7 @@
 #include <arpa/inet.h>
 #include "proxy_server.h"
 #include "exception_proxy_not_created.h"
-#include "http_parser.h"
+#include "http_request_parser.h"
 
 int main() {
     try {

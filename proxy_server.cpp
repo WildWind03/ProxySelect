@@ -10,12 +10,13 @@
 
 #include "proxy_server.h"
 #include "exception_proxy_not_created.h"
-#include "http_parser.h"
+#include "http_request_parser.h"
 #include "request_client.h"
 #include "request_server.h"
 
 proxy_server::proxy_server(int port) {
     is_stop = false;
+    cache_storage1 = new cache_storage();
 
     if (port <= 0 || port > MAX_VALUE_FOR_PORT) {
         throw std::invalid_argument("Port must be positive and less than " + MAX_VALUE_FOR_PORT);
@@ -57,6 +58,8 @@ proxy_server::~proxy_server() {
     for (auto & iter : requests) {
         free(iter.second);
     }
+
+    delete(cache_storage1);
 }
 
 void proxy_server::start() {
@@ -66,7 +69,7 @@ void proxy_server::start() {
 
         size_t count_of_clients = 0;
         for (auto iter : requests) {
-            if (iter.second -> is_active_request()) {
+            if (iter.second->is_selectable()) {
                 ++count_of_clients;
             }
         }
@@ -78,7 +81,7 @@ void proxy_server::start() {
 
         int current_pos = 1;
         for (auto & iter : requests) {
-            if (iter.second -> is_active_request()) {
+            if (iter.second->is_selectable()) {
                 poll_fds[current_pos].events = iter.second -> get_socket_select_event();
                 poll_fds[current_pos].fd = iter.second -> get_socket();
             }
@@ -116,6 +119,17 @@ void proxy_server::start() {
                             case request_enum::READ_FROM_CLIENT_FINISHED : {
                                 std::cout << "The request is ready to be sent to the server" << std::endl;
                                 request_client *request_client1 = (request_client *) base_request1;
+
+                                auto data =  cache_storage1 -> get_not_streaming_data_by_url(request_client1 -> get_url());
+                                if (data == nullptr) {
+
+                                } else {
+
+                                }
+
+                                cache_storage1->add_info(request_client1->get_url());
+                                request_client1->change_to_write_mode(cache_storage1);
+
                                 onGetRequestReceived(request_client1->get_host(), request_client1->get_request(),
                                                      request_client1->get_size_of_request());
                                 break;
@@ -131,7 +145,7 @@ void proxy_server::start() {
                             case request_enum::WRITE_TO_SERVER_FINISHED : {
                                 std::cout << "The request was sent to server successfully and fully" << std::endl;
                                 request_server *request_server1 = (request_server *) base_request1;
-                                request_server1 -> change_to_read_mode();
+                                request_server1 -> change_to_read_mode(cache_storage1);
                                 break;
                             }
 
