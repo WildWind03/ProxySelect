@@ -8,21 +8,21 @@
 #include <exception>
 #include <string>
 
-class too_much_data_exception : public std::exception {
+class exception_too_much_data : public std::exception {
     std::string error;
 public:
-    too_much_data_exception(std::string string) : error(string) {
+    exception_too_much_data(std::string string) : error(string) {
 
     }
 
-    too_much_data_exception & operator= (const too_much_data_exception & except) = delete;
-    too_much_data_exception() = delete;
+    exception_too_much_data & operator= (const exception_too_much_data & except) = delete;
+    exception_too_much_data() = delete;
 
     virtual const char* what() const _GLIBCXX_USE_NOEXCEPT override {
         return error.c_str();
     }
 
-    virtual ~too_much_data_exception() {
+    virtual ~exception_too_much_data() {
 
     }
 };

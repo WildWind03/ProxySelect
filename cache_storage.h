@@ -34,7 +34,7 @@ public:
 
             strncpy(cached_data1.data, data, size);
             (*cached_data1.length) += size;
-            storage.insert(pair<std::string, cached_data> (url, cached_data1));
+            storage.insert(std::pair<std::string, cached_data> (url, cached_data1));
         }
 
         (*cached_data1.length) += size;

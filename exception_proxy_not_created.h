@@ -8,21 +8,21 @@
 #include <exception>
 #include <string>
 
-class proxy_not_created_exception : public std::exception {
+class exception_proxy_not_created : public std::exception {
     std::string errorStr;
 public:
-    proxy_not_created_exception(std::string string) : errorStr(string) {
+    exception_proxy_not_created(std::string string) : errorStr(string) {
 
     }
 
-    proxy_not_created_exception & operator= (const proxy_not_created_exception & except) = delete;
-    proxy_not_created_exception() = delete;
+    exception_proxy_not_created & operator= (const exception_proxy_not_created & except) = delete;
+    exception_proxy_not_created() = delete;
 
     virtual const char* what() const _GLIBCXX_USE_NOEXCEPT override {
         return errorStr.c_str();
     }
 
-    virtual ~proxy_not_created_exception() {
+    virtual ~exception_proxy_not_created() {
 
     }
 };

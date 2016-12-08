@@ -8,22 +8,22 @@
 #include <exception>
 #include <string>
 
-class connection_close_exception : public std::exception {
+class exception_connection_closed : public std::exception {
     std::string error;
 
 public:
-    connection_close_exception(std::string string) : error(string) {
+    exception_connection_closed(std::string string) : error(string) {
 
     }
 
-    connection_close_exception & operator= (const connection_close_exception & except) = delete;
-    connection_close_exception() = delete;
+    exception_connection_closed & operator= (const exception_connection_closed & except) = delete;
+    exception_connection_closed() = delete;
 
     virtual const char* what() const _GLIBCXX_USE_NOEXCEPT override {
             return error.c_str();
     }
 
-    virtual ~connection_close_exception() {
+    virtual ~exception_connection_closed() {
 
     }
 };

@@ -8,7 +8,7 @@
 #include <string>
 #include <sstream>
 #include <iostream>
-#include "http_parse_exception.h"
+#include "exception_invalid_http_data.h"
 
 class http_parser {
     int request_type;
@@ -38,7 +38,7 @@ public:
         size_t end = uri.find('/', start);
 
         if (start >= end) {
-            throw http_parse_exception("Invalid hostname");
+            throw exception_invalid_http_data("Invalid hostname");
         }
 
         host = uri.substr(start, end - start);
@@ -48,8 +48,8 @@ public:
 
         size_t index_of_slash = protocol_version.find('/') + 1;
         size_t index_of_end_of_line = protocol_version.find('\n');
-        if (index_of_end_of_line >= index_of_slash) {
-            throw http_parse_exception("Invalid protocol version");
+        if (index_of_end_of_line <= index_of_slash) {
+            throw exception_invalid_http_data("Invalid protocol version");
         }
 
         std::string protocol_version_short = protocol_version.substr(index_of_slash, index_of_end_of_line);
@@ -66,7 +66,7 @@ public:
             this->minor_version = std::stoi(minor_version);
 
         } catch (std::exception & e) {
-            throw http_parse_exception("Invalid request");
+            throw exception_invalid_http_data("Invalid request");
         }
 
     }

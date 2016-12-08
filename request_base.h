@@ -9,7 +9,7 @@
 #include <exception>
 #include "request_enum.h"
 
-class base_request {
+class request_base {
     bool is_active = true;
     int socket_fd;
     int port;
@@ -17,7 +17,7 @@ class base_request {
 
 public:
 
-    base_request(int socket_fd, int port, std::string ip) {
+    request_base(int socket_fd, int port, std::string ip) {
         this -> socket_fd = socket_fd;
         this -> port;
         this -> ip = ip;

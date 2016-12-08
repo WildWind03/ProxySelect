@@ -8,22 +8,22 @@
 #include <string>
 #include <exception>
 
-class http_parse_exception : public std::exception {
+class exception_invalid_http_data : public std::exception {
     std::string error;
 
 public:
-    http_parse_exception(std::string string) : error(string) {
+    exception_invalid_http_data(std::string string) : error(string) {
 
     }
 
-    http_parse_exception & operator= (const http_parse_exception & except) = delete;
-    http_parse_exception() = delete;
+    exception_invalid_http_data & operator= (const exception_invalid_http_data & except) = delete;
+    exception_invalid_http_data() = delete;
 
     virtual const char* what() const _GLIBCXX_USE_NOEXCEPT override {
         return error.c_str();
     }
 
-    virtual ~http_parse_exception() {
+    virtual ~exception_invalid_http_data() {
 
     }
 };

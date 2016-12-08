@@ -8,22 +8,22 @@
 #include <string>
 #include <exception>
 
-class exec_request_exception : public std::exception {
+class exception_read : public std::exception {
     std::string error;
 
 public:
-    exec_request_exception(std::string string) : error(string) {
+    exception_read(std::string string) : error(string) {
 
     }
 
-    exec_request_exception & operator= (const exec_request_exception & except) = delete;
-    exec_request_exception() = delete;
+    exception_read & operator= (const exception_read & except) = delete;
+    exception_read() = delete;
 
     virtual const char* what() const _GLIBCXX_USE_NOEXCEPT override {
             return error.c_str();
     }
 
-    virtual ~exec_request_exception() {
+    virtual ~exception_read() {
 
     }
 };

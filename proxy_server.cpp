@@ -9,9 +9,10 @@
 #include <netdb.h>
 
 #include "proxy_server.h"
-#include "proxy_not_created_exception.h"
+#include "exception_proxy_not_created.h"
 #include "http_parser.h"
-#include "client_request.h"
+#include "request_client.h"
+#include "request_server.h"
 
 proxy_server::proxy_server(int port) {
     is_stop = false;
@@ -27,7 +28,7 @@ proxy_server::proxy_server(int port) {
     setsockopt(socket_fd, SOL_SOCKET, SO_REUSEADDR, &flag, sizeof(int));
 
     if (-1 == socket_fd) {
-        throw proxy_not_created_exception("Socket system call return error");
+        throw exception_proxy_not_created("Socket system call return error");
     }
 
     std::cout << "Socket is created!" << std::endl;
@@ -39,21 +40,23 @@ proxy_server::proxy_server(int port) {
 
     int result_of_binding = bind(socket_fd, (struct sockaddr *) &sockaddr_in1, sizeof(sockaddr_in1));
     if (0 != result_of_binding) {
-        throw proxy_not_created_exception("Can't bind socket");
+        throw exception_proxy_not_created("Can't bind socket");
     }
 
     std::cout << "The socket is binded!" << std::endl;
 
     int result_of_listening_socket = listen(socket_fd, MAX_COUNT_OF_PENDING_REQUESTS);
     if (0 != result_of_listening_socket) {
-        throw new proxy_not_created_exception("Can't listen on the socket");
+        throw new exception_proxy_not_created("Can't listen on the socket");
     }
 
     std::cout << "Socket started listening" << std::endl;
 }
 
 proxy_server::~proxy_server() {
-
+    for (auto & iter : requests) {
+        free(iter.second);
+    }
 }
 
 void proxy_server::start() {
@@ -62,8 +65,8 @@ void proxy_server::start() {
     while (!is_stop) {
 
         size_t count_of_clients = 0;
-        for (auto & iter : requests) {
-            if (iter.second.is_active_request()) {
+        for (auto iter : requests) {
+            if (iter.second -> is_active_request()) {
                 ++count_of_clients;
             }
         }
@@ -75,9 +78,9 @@ void proxy_server::start() {
 
         int current_pos = 1;
         for (auto & iter : requests) {
-            if (iter.second.is_active_request()) {
-                poll_fds[current_pos].events = iter.second.get_socket_select_event();
-                poll_fds[current_pos].fd = socket_fd;
+            if (iter.second -> is_active_request()) {
+                poll_fds[current_pos].events = iter.second -> get_socket_select_event();
+                poll_fds[current_pos].fd = iter.second -> get_socket();
             }
         }
 
@@ -96,26 +99,64 @@ void proxy_server::start() {
             if (-1 == newFd) {
                 std::cout << "Can't accept new connection" << std::endl;
             } else {
-                std::cout << "New connection accepted!" << std::endl;
-                requests.insert(std::pair<int, client_request>(newFd, client_request(newFd, inet_ntoa (sockaddr_in1.sin_addr), sockaddr_in1.sin_port)));
+                //std::cout << "New connection accepted!" << std::endl;
+                request_base * base_request1 = new request_client(newFd, inet_ntoa (sockaddr_in1.sin_addr), sockaddr_in1.sin_port);
+                requests.insert(std::pair<int, request_base*>(newFd, base_request1));
             }
         }
 
         for (int i = 1; i < count_of_clients + 1; i++) {
-            if (poll_fds[i].revents == POLLIN) {
-                request_enum request_value = requests.find(poll_fds[i].fd).operator*().second.exec();
+                if (poll_fds[i].revents == POLLIN || poll_fds[i].revents == POLLOUT) {
+                    request_base *base_request1 = requests.find(poll_fds[i].fd).operator*().second;
 
-                switch (request_value) {
-                    case request_enum::READ_FROM_CLIENT_FINISHED :
-                        break;
-                    case request_enum::WRITE_TO_CLIENT_FINISHED :
-                        close(poll_fds[i].fd);
+                    try {
+                        request_enum request_value = base_request1 -> exec();
+
+                        switch (request_value) {
+                            case request_enum::READ_FROM_CLIENT_FINISHED : {
+                                std::cout << "The request is ready to be sent to the server" << std::endl;
+                                request_client *request_client1 = (request_client *) base_request1;
+                                onGetRequestReceived(request_client1->get_host(), request_client1->get_request(),
+                                                     request_client1->get_size_of_request());
+                                break;
+                            }
+
+                            case request_enum::WRITE_TO_CLIENT_FINISHED : {
+                                close(poll_fds[i].fd);
+                                free(requests.find(poll_fds[i].fd).operator*().second);
+                                requests.erase(poll_fds[i].fd);
+                                break;
+                            }
+
+                            case request_enum::WRITE_TO_SERVER_FINISHED : {
+                                std::cout << "The request was sent to server successfully and fully" << std::endl;
+                                request_server *request_server1 = (request_server *) base_request1;
+                                request_server1 -> change_to_read_mode();
+                                break;
+                            }
+
+                            default: {
+                                break;
+                            }
+                        }
+
+                    } catch (exception_connection_closed & exception) {
+                        std::cout << exception.what() << std::endl;
+                        close(base_request1->get_socket());
+                        free(base_request1);
                         requests.erase(poll_fds[i].fd);
-                        break;
-                    default:
-                        break;
+                    } catch (exception_invalid_http_data & exception1) {
+                        std::cout << exception1.what() << std::endl;
+                        close(base_request1->get_socket());
+                        free(base_request1);
+                        requests.erase(poll_fds[i].fd);
+                    } catch (exception_not_supported_request & request_not_supported_exception1) {
+                        std::cout << request_not_supported_exception1.what() << std::endl;
+                        close(base_request1->get_socket());
+                        free(base_request1);
+                        requests.erase(poll_fds[i].fd);
+                    }
                 }
-            }
         }
 
 
@@ -127,7 +168,7 @@ void proxy_server::stop() {
     is_stop = true;
 }
 
-void proxy_server::onGetRequestReceived(std::string host, std::string request) {
+void proxy_server::onGetRequestReceived(std::string host, std::string request, size_t size) {
     int server_socket_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (-1 == server_socket_fd) {
         std::cout << "Can not create socket" << std::endl;
@@ -136,34 +177,16 @@ void proxy_server::onGetRequestReceived(std::string host, std::string request) {
 
     std::string ip = hostname_to_ip(host);
 
-    struct sockaddr_in sockaddr_in1;
-    sockaddr_in1.sin_family = AF_INET;
-    sockaddr_in1.sin_port = htons(HTTP_PORT);
-    sockaddr_in1.sin_addr.s_addr = inet_addr(ip.c_str());
+    request_server *server_request1 = new request_server(server_socket_fd, ip, HTTP_PORT, request, size);
+    requests.insert(std::pair<int, request_base*>(server_socket_fd, server_request1));
 
-    int connect_result = connect(server_socket_fd, (struct sockaddr *) &sockaddr_in1, sizeof(sockaddr_in1));
-
-    if (-1 == connect_result) {
-        std::cout << "Can not connect to " + ip << std::endl;
-        close(server_socket_fd);
-        return;
-    }
-
-    /*ssize_t count_of_send_data = send(server_socket_fd, request.c_str(), request.size(), NULL);
-    if (count_of_send_data != request.size()) {
-        std::cout << "Error while sending message" << std::endl;
-    } else {
-        std::cout << "The request was successfully sent to the server" << std::endl;
-
-    }*/
-
-    close(server_socket_fd);
+    std::cout << "New request server was created" << std::endl;
 }
 
 std::string proxy_server::hostname_to_ip(std::string host) {
     addrinfo *res;
     getaddrinfo(host.c_str(), NULL, NULL, &res);
-    char ip_address[30];
+    char ip_address[50];
     getnameinfo(res->ai_addr, res->ai_addrlen, ip_address, NI_MAXHOST, NULL, 0, NI_NUMERICHOST);
 
     return std::string(ip_address);

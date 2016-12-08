@@ -5,12 +5,12 @@
 #ifndef PROXY_GET_REQUEST_FROM_CLIENT_H
 #define PROXY_GET_REQUEST_FROM_CLIENT_H
 
-#include "base_request.h"
-#include "too_much_data_exception.h"
-#include "connection_close_exception.h"
-#include "exec_request_exception.h"
+#include "request_base.h"
+#include "exception_too_much_data.h"
+#include "exception_connection_closed.h"
+#include "exception_read.h"
 #include "http_parser.h"
-#include "request_not_supported_exception.h"
+#include "exception_not_supported_request.h"
 #include "cache_storage.h"
 
 #include <string>
@@ -19,11 +19,11 @@
 #include <unistd.h>
 #include <bits/poll.h>
 
-class client_request : public base_request {
-    const static size_t REQUEST_SIZE = 1000;
+class request_client : public request_base {
+    const static size_t REQUEST_SIZE = 4096;
 
     char *request;
-    size_t current_pos_in_request;
+    size_t current_pos_in_request = 0;
 
     bool is_read = true;
     bool is_selectable = false;
@@ -31,10 +31,21 @@ class client_request : public base_request {
     int pos_in_cache_record = 0;
     std::string url;
     cache_storage cache;
+    std::string host;
 
-    bool is_finished_request(ssize_t count_of_received_bytes) {
-        size_t start_pos_for_checking_for_end_of_request = current_pos_in_request - 3 - count_of_received_bytes;
-        std::string string(request, start_pos_for_checking_for_end_of_request, current_pos_in_request - start_pos_for_checking_for_end_of_request);
+    bool is_finished_request(size_t count_of_received_bytes) {
+        size_t start_pos_for_checking_for_end_of_request;
+        size_t length;
+
+        if (current_pos_in_request >= 3 ) {
+            start_pos_for_checking_for_end_of_request = current_pos_in_request - 3;
+            length = count_of_received_bytes + 3;
+        } else {
+            start_pos_for_checking_for_end_of_request = 0;
+            length = count_of_received_bytes;
+        }
+
+        std::string string(request + start_pos_for_checking_for_end_of_request, length);
 
         char end_of_request[] = {'\r', '\n', '\r', '\n'};
         size_t pos_of_end = string.find(end_of_request);
@@ -43,7 +54,7 @@ class client_request : public base_request {
     }
 
 public:
-    client_request(int socket_fd, std::string ip, int port) : base_request(socket_fd, port, ip) {
+    request_client(int socket_fd, std::string ip, int port) : request_base(socket_fd, port, ip) {
         request = (char*) malloc (sizeof(char) * REQUEST_SIZE);
     }
 
@@ -53,19 +64,19 @@ public:
 
             if (-1 == count_of_received_bytes) {
                 std::cout << "Error while receiving data" << std::endl;
-                throw exec_request_exception("Error while receiving data");
+                throw exception_read("Error while receiving data");
             }
 
             current_pos_in_request += count_of_received_bytes;
 
             if (0 == count_of_received_bytes) {
                 std::cout << "The connection is closed!" << std::endl;
-                throw connection_close_exception(
-                        "The connection with " + get_ip() + ":" + std::to_string(get_port()) + "is closed");
+                throw exception_connection_closed(
+                        "The connection with " + get_ip() + ":" + std::to_string(get_port()) + " is closed");
             } else {
 
                 if (is_finished_request(count_of_received_bytes)) {
-                    std::cout << "The request is received!" << std::endl;
+                    //std::cout << "The request is received!" << std::endl;
 
                     http_parser http_parser1(request);
 
@@ -73,6 +84,7 @@ public:
                     int minor_v = http_parser1.get_minor_version();
 
                     url = http_parser1.get_uri();
+                    host = http_parser1.get_host();
 
                     if (major_v != 1 || minor_v != 0) {
                         std::cout << "The version of http protocol is not supported" << std::endl;
@@ -82,8 +94,8 @@ public:
                             case http_parser::GET_REQUEST :
                                 return request_enum::READ_FROM_CLIENT_FINISHED;
                             default:
-                                std::cout << "The type of request is not supported" << std::endl;
-                                throw request_not_supported_exception("Type of request is not GET");
+                                //std::cout << "The type of request is not supported" << std::endl;
+                                throw exception_not_supported_request("Type of request is not GET");
                         }
                     }
                 } else {
@@ -100,10 +112,10 @@ public:
                 is_selectable = false;
                 return request_enum::NOTHING_TO_WRITE_TO_CLIENT;
             } else {
-                ssize_t count_of_sent_chars = send(get_socket(), data.data + pos_in_cache_record, cur_length - pos_in_cache_record, NULL);
+                ssize_t count_of_sent_chars = send(get_socket(), data.data + pos_in_cache_record, cur_length - pos_in_cache_record, 0);
 
                 if (-1 == count_of_sent_chars) {
-                    throw exec_request_exception("Error while sending data to client");
+                    throw exception_read("Error while sending data to client");
                 }
 
                 pos_in_cache_record += count_of_sent_chars;
@@ -125,6 +137,10 @@ public:
         return request;
     }
 
+    size_t get_size_of_request() {
+        return current_pos_in_request;
+    }
+
     void change_to_write_mode(cache_storage cache) {
         is_read = false;
         this -> cache = cache;
@@ -138,6 +154,14 @@ public:
         return this -> is_selectable;
     }
 
+    std::string get_url() {
+        return url;
+    }
+
+    std::string get_host() {
+        return host;
+    }
+
     virtual short get_socket_select_event() override {
         short polling_event = POLLIN;
         short pollout_event = POLLOUT;
@@ -145,7 +169,7 @@ public:
         return is_read ? polling_event : pollout_event;
     }
 
-    virtual ~client_request() {
+    virtual ~request_client() {
         free(request);
     }
 };
