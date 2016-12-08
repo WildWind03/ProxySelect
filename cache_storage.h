@@ -13,6 +13,7 @@ class cache_storage {
     struct cached_data {
         char* data;
         size_t *length;
+        bool *isFinished;
     };
 
     std::map<std::string, cached_data> storage;
@@ -29,6 +30,7 @@ public:
         if (cached_data1.data == NULL && cached_data1.length == NULL) {
             cached_data1.data = (char*) malloc(size);
             cached_data1.length = (size_t*) malloc(sizeof(size_t));
+            cached_data1.isFinished = (bool*) malloc(sizeof(bool));
 
             strncpy(cached_data1.data, data, size);
             (*cached_data1.length) += size;
@@ -40,6 +42,10 @@ public:
         strncat(cached_data1.data, data, size);
     }
 
+    void finish_record(std::string url) {
+        *(storage.find(url).operator*().second.isFinished) = true;
+    }
+
     const cached_data get_data_by_url(std::string url) {
         return storage.find(url).operator*().second;
     }
@@ -48,6 +54,7 @@ public:
         cached_data cached_data1 = storage.find(url).operator*().second;
         free(cached_data1.data);
         free(cached_data1.length);
+        free(cached_data1.isFinished);
         storage.erase(url);
     }
 
@@ -55,6 +62,7 @@ public:
         for (auto iter : storage ) {
             free(iter.second.length);
             free(iter.second.data);
+            free(iter.second.isFinished);
         }
     }
 };

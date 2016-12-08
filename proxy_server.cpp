@@ -17,7 +17,7 @@
 proxy_server::proxy_server(int port) {
     is_stop = false;
 
-    http_request = (char*) malloc(MAX_CAPACITY_OF_HTTP_REQUEST);
+    //http_request = (char*) malloc(MAX_CAPACITY_OF_HTTP_REQUEST);
 
     if (port <= 0 || port > MAX_VALUE_FOR_PORT) {
         throw std::invalid_argument("Port must be positive and less than " + MAX_VALUE_FOR_PORT);
@@ -57,20 +57,20 @@ proxy_server::proxy_server(int port) {
 }
 
 proxy_server::~proxy_server() {
-    free(http_request);
+    //free(http_request);
 }
 
 void proxy_server::start() {
     std::cout << "Proxy server start working" << std::endl;
 
     while (!is_stop) {
-        size_t count_of_clients = clients.size();
+        size_t count_of_clients = requests.size();
 
         struct pollfd * poll_fds = (struct pollfd*) malloc(sizeof(struct pollfd*) * (count_of_clients + 1));
         poll_fds[0].events = POLLIN;
         poll_fds[0].fd = socketFd;
 
-        for (auto & iter : clients) {
+        for (auto & iter : requests) {
             poll_fds[1].events = POLLIN;
             poll_fds[1].fd = iter.first;
         }
@@ -91,13 +91,13 @@ void proxy_server::start() {
                 std::cout << "Can't accept new connection" << std::endl;
             } else {
                 std::cout << "New connection accepted!" << std::endl;
-                clients.insert(std::pair<int, client>(newFd, client(sockaddr_in1.sin_port, inet_ntoa (sockaddr_in1.sin_addr))));
+                requests.insert(std::pair<int, client>(newFd, client(sockaddr_in1.sin_port, inet_ntoa (sockaddr_in1.sin_addr))));
             }
         }
 
         for (int i = 1; i < count_of_clients + 1; i++) {
             if (poll_fds[i].revents == POLLIN) {
-                client client1 = clients.find(poll_fds[i].fd).operator*().second;
+                client client1 = requests.find(poll_fds[i].fd).operator*().second;
                 size_t max_size_to_read = client1.get_max_data_to_read();
 
                 ssize_t count_of_received_bytes = recv(poll_fds[i].fd, http_request, MAX_CAPACITY_OF_HTTP_REQUEST, 0);
@@ -105,13 +105,13 @@ void proxy_server::start() {
                 if (count_of_received_bytes > max_size_to_read) {
                     std::cout << "Too much data" << std::endl;
                     close(poll_fds[i].fd);
-                    clients.erase(poll_fds[i].fd);
+                    requests.erase(poll_fds[i].fd);
                 }
 
                 if (0 == count_of_received_bytes) {
                     std::cout << "The connection is closed!" << std::endl;
                     close(poll_fds[i].fd);
-                    clients.erase(poll_fds[i].fd);
+                    requests.erase(poll_fds[i].fd);
                 } else {
                     client1.add_new_data(http_request, (size_t) count_of_received_bytes);
 
@@ -138,7 +138,7 @@ void proxy_server::start() {
                         }
 
                         close(poll_fds[i].fd);
-                        clients.erase(poll_fds[i].fd);
+                        requests.erase(poll_fds[i].fd);
                     }
                 }
             }

@@ -4,6 +4,7 @@
 #include <map>
 #include "client.h"
 #include "cache_storage.h"
+#include "base_request.h"
 
 class proxy_server {
     const int MAX_VALUE_FOR_PORT = 20000;
@@ -16,12 +17,12 @@ class proxy_server {
     int is_stop;
     int port;
     int socketFd;
-    std::map<int, client> clients;
+    std::map<int, base_request> requests;
 
-    char* http_request;
+    //char* http_request;
 
-    void onGetRequestReceived(std::string uri, std::string request);
-    std::string hostname_to_ip(std::string string);
+    //void onGetRequestReceived(std::string uri, std::string request);
+    //std::string hostname_to_ip(std::string string);
 public:
     proxy_server() = delete;
     proxy_server(const proxy_server & proxy_server1) = delete;

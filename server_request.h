@@ -8,6 +8,7 @@
 #include <string>
 #include <list>
 #include "client.h"
+#include "base_request.h"
 
 class server_request {
     std::string url;
@@ -18,13 +19,13 @@ class server_request {
     size_t size_of_request;
 
 public:
-    server_request(std::string url, int socket_fd, std::string request) {
+    server_request(int socket_fd, std::string ip, int port) : base_request(socket_fd, ) {
         this -> url = url;
         this -> socket_fd = socket_fd;
         this -> request = request;
         this -> pos = 0;
         this -> request_char = request.c_str();
-        this -> size_of_request = request.length()
+        this -> size_of_request = request.length();
     }
 
     int get_socket_fd() {
