@@ -17,6 +17,7 @@
 #include <sys/socket.h>
 #include <iostream>
 #include <unistd.h>
+#include <bits/poll.h>
 
 class client_request : public base_request {
     const static size_t REQUEST_SIZE = 1000;
@@ -46,7 +47,7 @@ public:
         request = (char*) malloc (sizeof(char) * REQUEST_SIZE);
     }
 
-    virtual bool exec() {
+    virtual request_enum exec() override {
         if (is_read) {
             ssize_t count_of_received_bytes = recv(get_socket(), request, REQUEST_SIZE - current_pos_in_request, 0);
 
@@ -79,25 +80,25 @@ public:
                         int request_type = http_parser1.get_request_type();
                         switch (request_type) {
                             case http_parser::GET_REQUEST :
-                                return true;
+                                return request_enum::READ_FROM_CLIENT_FINISHED;
                             default:
                                 std::cout << "The type of request is not supported" << std::endl;
                                 throw request_not_supported_exception("Type of request is not GET");
                         }
                     }
                 } else {
-                    return false;
+                    return request_enum::READ;
                 }
             }
 
-            return false;
+            return request_enum::READ;
         } else {
             auto data = cache.get_data_by_url(url);
             size_t cur_length = *data.length;
 
             if (pos_in_cache_record >= cur_length) {
                 is_selectable = false;
-                return false;
+                return request_enum::NOTHING_TO_WRITE_TO_CLIENT;
             } else {
                 ssize_t count_of_sent_chars = send(get_socket(), data.data + pos_in_cache_record, cur_length - pos_in_cache_record, NULL);
 
@@ -108,9 +109,13 @@ public:
                 pos_in_cache_record += count_of_sent_chars;
 
                 if (*data.isFinished) {
-                    return *data.length == pos_in_cache_record;
+                    if (*data.length == pos_in_cache_record) {
+                        return request_enum::WRITE_TO_CLIENT_FINISHED;
+                    } else {
+                        return request_enum::WRITE;
+                    }
                 } else {
-                    return false;
+                    return request_enum::WRITE;
                 }
             }
         }
@@ -125,16 +130,23 @@ public:
         this -> cache = cache;
     }
 
-    ~client_request() {
-        free(request);
-    }
-
     void notify_new_data() {
         this -> is_selectable = true;
     }
 
     bool can_be_selected() {
         return this -> is_selectable;
+    }
+
+    virtual short get_socket_select_event() override {
+        short polling_event = POLLIN;
+        short pollout_event = POLLOUT;
+
+        return is_read ? polling_event : pollout_event;
+    }
+
+    virtual ~client_request() {
+        free(request);
     }
 };
 #endif //PROXY_GET_REQUEST_FROM_CLIENT_H

@@ -7,6 +7,7 @@
 
 #include <string>
 #include <exception>
+#include "request_enum.h"
 
 class base_request {
     bool is_active = true;
@@ -42,7 +43,9 @@ public:
         return socket_fd;
     }
 
-    virtual bool exec() = 0;
+    virtual short get_socket_select_event() = 0;
+
+    virtual request_enum exec() = 0;
 
 };
 

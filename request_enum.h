@@ -1,0 +1,14 @@
+//
+// Created by alexander on 08.12.16.
+//
+
+#ifndef PROXY_REQUEST_ENUM_H
+#define PROXY_REQUEST_ENUM_H
+
+
+enum class request_enum {
+    READ, READ_FROM_CLIENT_FINISHED, WRITE, WRITE_TO_SERVER_FINISHED, NOTHING_TO_WRITE_TO_CLIENT, WRITE_TO_CLIENT_FINISHED
+};
+
+
+#endif //PROXY_REQUEST_ENUM_H

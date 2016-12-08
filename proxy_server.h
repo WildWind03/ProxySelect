@@ -16,7 +16,7 @@ class proxy_server {
 
     int is_stop;
     int port;
-    int socketFd;
+    int socket_fd;
     std::map<int, base_request> requests;
 
     //char* http_request;

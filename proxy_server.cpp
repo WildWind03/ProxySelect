@@ -11,26 +11,22 @@
 #include "proxy_server.h"
 #include "proxy_not_created_exception.h"
 #include "http_parser.h"
-
-//int proxy_server::socketFdStatic;
+#include "client_request.h"
 
 proxy_server::proxy_server(int port) {
     is_stop = false;
-
-    //http_request = (char*) malloc(MAX_CAPACITY_OF_HTTP_REQUEST);
 
     if (port <= 0 || port > MAX_VALUE_FOR_PORT) {
         throw std::invalid_argument("Port must be positive and less than " + MAX_VALUE_FOR_PORT);
     }
 
     this -> port = port;
-    socketFd = socket(AF_INET, SOCK_STREAM, 0);
+    socket_fd = socket(AF_INET, SOCK_STREAM, 0);
 
     int flag = 1;
-    setsockopt(socketFd,SOL_SOCKET,SO_REUSEADDR, &flag, sizeof(int));
+    setsockopt(socket_fd, SOL_SOCKET, SO_REUSEADDR, &flag, sizeof(int));
 
-
-    if (-1 == socketFd) {
+    if (-1 == socket_fd) {
         throw proxy_not_created_exception("Socket system call return error");
     }
 
@@ -41,14 +37,14 @@ proxy_server::proxy_server(int port) {
     sockaddr_in1.sin_port = htons(port);
     sockaddr_in1.sin_addr.s_addr = inet_addr(BIND_IP);
 
-    int result_of_binding = bind(socketFd, (struct sockaddr *) &sockaddr_in1, sizeof(sockaddr_in1));
+    int result_of_binding = bind(socket_fd, (struct sockaddr *) &sockaddr_in1, sizeof(sockaddr_in1));
     if (0 != result_of_binding) {
         throw proxy_not_created_exception("Can't bind socket");
     }
 
     std::cout << "The socket is binded!" << std::endl;
 
-    int result_of_listening_socket = listen(socketFd, MAX_COUNT_OF_PENDING_REQUESTS);
+    int result_of_listening_socket = listen(socket_fd, MAX_COUNT_OF_PENDING_REQUESTS);
     if (0 != result_of_listening_socket) {
         throw new proxy_not_created_exception("Can't listen on the socket");
     }
@@ -57,22 +53,32 @@ proxy_server::proxy_server(int port) {
 }
 
 proxy_server::~proxy_server() {
-    //free(http_request);
+
 }
 
 void proxy_server::start() {
     std::cout << "Proxy server start working" << std::endl;
 
     while (!is_stop) {
-        size_t count_of_clients = requests.size();
+
+        size_t count_of_clients = 0;
+        for (auto & iter : requests) {
+            if (iter.second.is_active_request()) {
+                ++count_of_clients;
+            }
+        }
 
         struct pollfd * poll_fds = (struct pollfd*) malloc(sizeof(struct pollfd*) * (count_of_clients + 1));
-        poll_fds[0].events = POLLIN;
-        poll_fds[0].fd = socketFd;
 
+        poll_fds[0].events = POLLIN;
+        poll_fds[0].fd = socket_fd;
+
+        int current_pos = 1;
         for (auto & iter : requests) {
-            poll_fds[1].events = POLLIN;
-            poll_fds[1].fd = iter.first;
+            if (iter.second.is_active_request()) {
+                poll_fds[current_pos].events = iter.second.get_socket_select_event();
+                poll_fds[current_pos].fd = socket_fd;
+            }
         }
 
         while (0 == poll(poll_fds, count_of_clients + 1, TIME_TO_BE_BLOCKED_IN_POLL)) {
@@ -86,63 +92,32 @@ void proxy_server::start() {
             struct sockaddr_in sockaddr_in1;
             socklen_t socklen = sizeof(sockaddr_in1);
 
-            int newFd = accept(socketFd, (struct sockaddr*) &sockaddr_in1, &socklen);
+            int newFd = accept(socket_fd, (struct sockaddr*) &sockaddr_in1, &socklen);
             if (-1 == newFd) {
                 std::cout << "Can't accept new connection" << std::endl;
             } else {
                 std::cout << "New connection accepted!" << std::endl;
-                requests.insert(std::pair<int, client>(newFd, client(sockaddr_in1.sin_port, inet_ntoa (sockaddr_in1.sin_addr))));
+                requests.insert(std::pair<int, client_request>(newFd, client_request(newFd, inet_ntoa (sockaddr_in1.sin_addr), sockaddr_in1.sin_port)));
             }
         }
 
         for (int i = 1; i < count_of_clients + 1; i++) {
             if (poll_fds[i].revents == POLLIN) {
-                client client1 = requests.find(poll_fds[i].fd).operator*().second;
-                size_t max_size_to_read = client1.get_max_data_to_read();
+                request_enum request_value = requests.find(poll_fds[i].fd).operator*().second.exec();
 
-                ssize_t count_of_received_bytes = recv(poll_fds[i].fd, http_request, MAX_CAPACITY_OF_HTTP_REQUEST, 0);
-
-                if (count_of_received_bytes > max_size_to_read) {
-                    std::cout << "Too much data" << std::endl;
-                    close(poll_fds[i].fd);
-                    requests.erase(poll_fds[i].fd);
-                }
-
-                if (0 == count_of_received_bytes) {
-                    std::cout << "The connection is closed!" << std::endl;
-                    close(poll_fds[i].fd);
-                    requests.erase(poll_fds[i].fd);
-                } else {
-                    client1.add_new_data(http_request, (size_t) count_of_received_bytes);
-
-                    if (client1.is_correct_request()) {
-                        std::cout << "The request is got" << std::endl;
-
-                        http_parser http_parser1(client1.get_request().c_str());
-
-                        int major_v = http_parser1.get_major_version();
-                        int minor_v = http_parser1.get_minor_version();
-
-                        if (major_v != 1 || minor_v != 0) {
-                            std::cout << "The version of http protocol is not supported" << std::endl;
-                        } else {
-                            int request_type = http_parser1.get_request_type();
-                            switch (request_type) {
-                                case http_parser::GET_REQUEST :
-                                    onGetRequestReceived(http_parser1.get_host(), client1.get_request());
-                                    break;
-                                default:
-                                    std::cout << "The type of request is not supported" << std::endl;
-                                    break;
-                            }
-                        }
-
+                switch (request_value) {
+                    case request_enum::READ_FROM_CLIENT_FINISHED :
+                        break;
+                    case request_enum::WRITE_TO_CLIENT_FINISHED :
                         close(poll_fds[i].fd);
                         requests.erase(poll_fds[i].fd);
-                    }
+                        break;
+                    default:
+                        break;
                 }
             }
         }
+
 
         free(poll_fds);
     }
