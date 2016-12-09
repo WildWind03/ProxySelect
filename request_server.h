@@ -58,11 +58,12 @@ public:
                 return request_enum::WRITE;
             }
         } else {
-            ssize_t count_of_received_bytes = recv(get_socket(), cached_data1 -> get_data_to_write(),
-                                           cached_data1 -> get_max_data_can_be_read(), 0);
+            std::cout << cached_data1 -> get_max_data_can_be_written() << std::endl;
 
             std::cout << cached_data1 -> get_data_to_write() << std::endl;
 
+            ssize_t count_of_received_bytes = recv(get_socket(), cached_data1 -> get_data_to_write(),
+                                           cached_data1 -> get_max_data_can_be_written(), 0);
 
             if (-1 == count_of_received_bytes) {
                 std::cout << "Error while receiving data" << std::endl;

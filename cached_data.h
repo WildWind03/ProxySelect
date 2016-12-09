@@ -21,7 +21,7 @@ class cached_data : public observable {
     observer *server_observer;
 
 public:
-    const static size_t MAX_CAPACITY_OF_CACHE_RECORD = 4096;
+    const static size_t MAX_CAPACITY_OF_CACHE_RECORD = 128000;
 
     bool is_finished = false;
     bool is_streaming = false;
@@ -32,14 +32,14 @@ public:
     }
 
     cached_data() {
-        data = (char*) malloc (sizeof(MAX_CAPACITY_OF_CACHE_RECORD));
+        data = (char*) malloc (MAX_CAPACITY_OF_CACHE_RECORD);
     }
 
     char* get_data_to_write() {
         return data + length;
     }
 
-    size_t get_max_data_can_be_read() {
+    size_t get_max_data_can_be_written() {
         return MAX_CAPACITY_OF_CACHE_RECORD - length;
     }
 

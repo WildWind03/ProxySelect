@@ -27,7 +27,6 @@ class request_client : public request_base {
 
     bool is_read = true;
 
-    size_t pos_in_cache_record = 0;
     std::string url;
     cached_data *cache;
     std::string host;
@@ -39,11 +38,11 @@ public:
 
     virtual void update(event_type event_type1) override {
         if (event_type1 == event_type::ENABLE_READ) {
-
+            set_selectable(true);
         }
 
         if (event_type1 == event_type::DISABLE_READ) {
-
+            set_selectable(false);
         }
     }
 
@@ -64,6 +63,19 @@ public:
                         "The connection with " + get_ip() + ":" + std::to_string(get_port()) + " is closed");
             }
             if (is_finished_request(count_of_received_bytes, current_pos_in_request, request)) {
+                std::string handled_request = request;
+                free(request);
+
+                size_t keep_alive_substr_pos = handled_request.find("keep-alive");
+                if (keep_alive_substr_pos != handled_request.length()) {
+                    handled_request.replace(keep_alive_substr_pos, 10, "Close     ");
+                }
+
+                request = (char*) malloc(sizeof(char) * handled_request.length());
+
+                for (int k = 0; k < handled_request.length(); ++k) {
+                    request[k] = handled_request.c_str()[k];
+                }
                 //std::cout << "The request is received!" << std::endl;
 
                 http_request_parser http_parser1(request);
@@ -132,10 +144,6 @@ public:
         short pollout_event = POLLOUT;
 
         return is_read ? polling_event : pollout_event;
-    }
-
-    size_t get_pos_in_cache_record() {
-        return pos_in_cache_record;
     }
 
     virtual ~request_client() {

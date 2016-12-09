@@ -119,6 +119,7 @@ void proxy_server::start() {
                             }
 
                             case request_enum::WRITE_TO_CLIENT_FINISHED : {
+                                std::cout << "The request is satisfied" << std::endl;
                                 onRequestSatisfied(poll_fds[i].fd);
                                 break;
                             }
@@ -126,6 +127,12 @@ void proxy_server::start() {
                             case request_enum::WRITE_TO_SERVER_FINISHED : {
                                 std::cout << "The request was sent to server successfully and fully" << std::endl;
                                 onRequestPassedToServer((request_server *) base_request1);
+                                break;
+                            }
+
+                            case request_enum::READ_FROM_SERVER_FINISHED: {
+                                std::cout << "The response was read from server" << std::endl;
+                                onResponseReceivedFromServer((request_server *) base_request1);
                                 break;
                             }
 
@@ -192,7 +199,6 @@ void proxy_server::onGetRequestReceived(request_client *request_client1) {
         requests.insert(std::pair<int, request_base*>(server_socket_fd, server_request1));
         storage.insert(std::pair<std::string, cached_data*> (request_client1->get_url(), cached_data1));
 
-        cached_data1->add_new_observer(server_request1, server_socket_fd);
         cached_data1->add_server_observer(server_request1);
     } else {
         std::cout << "There has already been such valid cache record in the cache" << std::endl;
@@ -221,6 +227,12 @@ void proxy_server::onRequestSatisfied(int fd) {
 
 void proxy_server::onRequestPassedToServer(request_server *request_server1) {
     request_server1 -> change_to_read_mode();
+}
+
+void proxy_server::onResponseReceivedFromServer(request_server *request_server1) {
+    close(request_server1 -> get_socket());
+    free(request_server1);
+    requests.erase(request_server1 -> get_socket());
 }
 
 

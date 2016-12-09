@@ -23,6 +23,7 @@ class proxy_server {
     void onRequestSatisfied(int fd);
     void onGetRequestReceived(request_client* request_client1);
     void onRequestPassedToServer(request_server *request_server1);
+    void onResponseReceivedFromServer(request_server *request_server1);
 
     std::string hostname_to_ip(std::string string);
 public:
