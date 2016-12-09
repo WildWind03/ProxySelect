@@ -21,12 +21,13 @@ class request_server : public request_base {
 
     bool is_write = true;
     size_t pos_in_sending_data = 0;
-    cache_storage::cached_data *cached_data1;
+    cached_data *cached_data1;
 
 public:
-    request_server(int socket_fd, std::string ip, int port, std::string request, size_t size) : request_base(socket_fd, port, ip) {
+    request_server(int socket_fd, std::string ip, int port, std::string request, size_t size, cached_data* cached_data2) : request_base(socket_fd, port, ip) {
         this -> request = request;
         this -> request_size = size;
+        this -> cached_data1 = cached_data2;
 
         struct sockaddr_in sockaddr_in1;
         sockaddr_in1.sin_family = AF_INET;
@@ -57,44 +58,46 @@ public:
                 return request_enum::WRITE;
             }
         } else {
-            ssize_t count_of_received_bytes = recv(get_socket(), cached_data1 -> data + cached_data1 -> length,
-                                           cache_storage::CACHE_RECORD_MAX_CAPACITY - cached_data1 -> length, 0);
+            ssize_t count_of_received_bytes = recv(get_socket(), cached_data1 -> get_data_to_write(),
+                                           cached_data1 -> get_max_data_can_be_read(), 0);
+
+            std::cout << cached_data1 -> get_data_to_write() << std::endl;
+
 
             if (-1 == count_of_received_bytes) {
                 std::cout << "Error while receiving data" << std::endl;
                 throw exception_read("Error while receiving data");
             }
 
-            cached_data1 -> length += count_of_received_bytes;
-
             if (0 == count_of_received_bytes) {
-                std::cout << "The connection is closed by server!" << std::endl;
-                throw exception_connection_closed(
-                        "The connection with " + get_ip() + ":" + std::to_string(get_port()) + " is closed");
-            }
-
-            if (cached_data1 -> length >= cache_storage::CACHE_RECORD_MAX_CAPACITY) {
-                cached_data1 -> is_streaming = true;
-                set_selectable(false);
-            }
-
-            if (is_finished_request(count_of_received_bytes, cached_data1 -> length, cached_data1 -> data)) {
-                cached_data1 -> is_finished = true;
+                cached_data1 -> mark_finished();
                 return request_enum::READ_FROM_SERVER_FINISHED;
             }
 
+            cached_data1 -> update_because_data_was_add(count_of_received_bytes);
+
+            return request_enum::READ;
         }
     }
 
-    virtual void change_to_read_mode(cache_storage::cached_data *cached_data1) {
+    virtual void change_to_read_mode() {
         is_write = false;
-        this -> cached_data1 = cached_data1;
     }
 
     virtual short get_socket_select_event() override {
         short write_event = POLLOUT;
         short read_event = POLLIN;
         return is_write ? write_event : read_event;
+    }
+
+    virtual void update(event_type event_type1) override {
+        if (event_type1 == event_type::ENABLE_WRITE) {
+            set_selectable(true);
+        }
+
+        if (event_type1 == event_type::DISABLE_WRITE) {
+            set_selectable(false);
+        }
     }
 
     virtual ~request_server() {

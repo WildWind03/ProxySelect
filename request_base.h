@@ -9,7 +9,7 @@
 #include <exception>
 #include "request_enum.h"
 
-class request_base {
+class request_base : public observer {
     bool selectable = true;
     int socket_fd;
     int port;
@@ -37,7 +37,6 @@ protected:
     }
 
 public:
-
     request_base(int socket_fd, int port, std::string ip) {
         this -> socket_fd = socket_fd;
         this -> port;

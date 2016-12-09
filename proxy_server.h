@@ -2,8 +2,10 @@
 #define PROXY_PROXTSERVER_H
 
 #include <map>
-#include "cache_storage.h"
+#include "cached_data.h"
 #include "request_base.h"
+#include "request_client.h"
+#include "request_server.h"
 
 class proxy_server {
     const int MAX_VALUE_FOR_PORT = 20000;
@@ -12,13 +14,16 @@ class proxy_server {
     const int TIME_TO_BE_BLOCKED_IN_POLL = 2000;
     const int HTTP_PORT = 80;
 
-    int is_stop;
+    int is_stop = false;
     int port;
     int socket_fd;
     std::map<int, request_base*> requests;
-    cache_storage *cache_storage1;
+    std::multimap<std::string, cached_data*> storage;
 
-    void onGetRequestReceived(std::string uri, std::string request, size_t size);
+    void onRequestSatisfied(int fd);
+    void onGetRequestReceived(request_client* request_client1);
+    void onRequestPassedToServer(request_server *request_server1);
+
     std::string hostname_to_ip(std::string string);
 public:
     proxy_server() = delete;

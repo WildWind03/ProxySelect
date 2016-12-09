@@ -11,13 +11,13 @@
 #include "exception_read.h"
 #include "http_request_parser.h"
 #include "exception_not_supported_request.h"
-#include "cache_storage.h"
+#include "cached_data.h"
 
 #include <string>
 #include <sys/socket.h>
 #include <iostream>
 #include <unistd.h>
-#include <bits/poll.h>
+#include <sys/poll.h>
 
 class request_client : public request_base {
     const static size_t REQUEST_SIZE = 4096;
@@ -29,12 +29,22 @@ class request_client : public request_base {
 
     size_t pos_in_cache_record = 0;
     std::string url;
-    cache_storage *cache;
+    cached_data *cache;
     std::string host;
 
 public:
     request_client(int socket_fd, std::string ip, int port) : request_base(socket_fd, port, ip) {
         request = (char*) malloc (sizeof(char) * REQUEST_SIZE);
+    }
+
+    virtual void update(event_type event_type1) override {
+        if (event_type1 == event_type::ENABLE_READ) {
+
+        }
+
+        if (event_type1 == event_type::DISABLE_READ) {
+
+        }
     }
 
     virtual request_enum exec() override {
@@ -82,30 +92,15 @@ public:
 
             return request_enum::READ;
         } else {
-            auto data = cache -> get_not_streaming_data_by_url(url);
-            size_t cur_length = data -> length;
+            auto data = cache;
+            ssize_t count_of_sent_chars = send(get_socket(), data -> get_data_to_read(get_socket()), data -> get_count_of_bytes_that_can_be_read(get_socket()), 0);
 
-            if (pos_in_cache_record >= cur_length) {
-                set_selectable(false);
-                return request_enum::NOTHING_TO_WRITE_TO_CLIENT;
+            bool result_od_send = data -> update_because_data_was_read(get_socket(), count_of_sent_chars);
+
+            if(result_od_send) {
+                return request_enum::WRITE_TO_CLIENT_FINISHED;
             } else {
-                ssize_t count_of_sent_chars = send(get_socket(), data -> data + pos_in_cache_record, cur_length - pos_in_cache_record, 0);
-
-                if (-1 == count_of_sent_chars) {
-                    throw exception_read("Error while sending data to client");
-                }
-
-                pos_in_cache_record += count_of_sent_chars;
-
-                if (data -> is_finished) {
-                    if (data -> length == pos_in_cache_record) {
-                        return request_enum::WRITE_TO_CLIENT_FINISHED;
-                    } else {
-                        return request_enum::WRITE;
-                    }
-                } else {
-                    return request_enum::WRITE;
-                }
+                return request_enum::WRITE;
             }
         }
     }
@@ -118,7 +113,7 @@ public:
         return current_pos_in_request;
     }
 
-    void change_to_write_mode(cache_storage *cache) {
+    void change_to_write_mode(cached_data *cache) {
         is_read = false;
         this -> cache = cache;
     }
@@ -137,6 +132,10 @@ public:
         short pollout_event = POLLOUT;
 
         return is_read ? polling_event : pollout_event;
+    }
+
+    size_t get_pos_in_cache_record() {
+        return pos_in_cache_record;
     }
 
     virtual ~request_client() {
