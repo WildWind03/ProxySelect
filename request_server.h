@@ -58,10 +58,6 @@ public:
                 return request_enum::WRITE;
             }
         } else {
-            std::cout << cached_data1 -> get_max_data_can_be_written() << std::endl;
-
-            std::cout << cached_data1 -> get_data_to_write() << std::endl;
-
             ssize_t count_of_received_bytes = recv(get_socket(), cached_data1 -> get_data_to_write(),
                                            cached_data1 -> get_max_data_can_be_written(), 0);
 

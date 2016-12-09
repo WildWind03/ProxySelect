@@ -172,6 +172,13 @@ void proxy_server::stop() {
 void proxy_server::onGetRequestReceived(request_client *request_client1) {
     auto iter = storage.find(request_client1->get_url());
 
+    std::cout << request_client1 -> get_url() << std::endl;
+    if(iter == storage.end()) {
+        std::cout << "No record" << std::endl;
+    } else {
+        std::cout << "There is record" << std::endl;
+    }
+
     cached_data *cached_data1 = nullptr;
 
     while (iter != storage.end()) {
