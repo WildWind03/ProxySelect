@@ -52,8 +52,8 @@ public:
     }
 
     bool update_because_data_was_read(int fd, size_t count_of_read_bytes) {
-        size_t pos = pos_in_cache.find(fd).operator*().second;
-        pos += count_of_read_bytes;
+        size_t *pos = &pos_in_cache.find(fd).operator*().second;
+        *pos += count_of_read_bytes;
 
         if (is_streaming) {
             size_t min = 0;
@@ -77,9 +77,9 @@ public:
         }
 
         if (is_finished) {
-            return pos == length;
+            return *pos == length;
         } else {
-            if (pos == length) {
+            if (*pos == length) {
                 notify(fd, event_type::DISABLE_READ);
             }
 
