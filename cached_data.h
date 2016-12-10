@@ -106,7 +106,7 @@ public:
     }
 
     size_t get_count_of_bytes_that_can_be_read(int fd) {
-        return MAX_CAPACITY_OF_CACHE_RECORD - pos_in_cache.find(fd).operator*().second;
+        return length - pos_in_cache.find(fd).operator*().second;
     }
 
     void mark_finished() {

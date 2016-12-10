@@ -50,11 +50,11 @@ proxy_server::proxy_server(int port) {
 
 proxy_server::~proxy_server() {
     for (auto & iter : requests) {
-        free(iter.second);
+        delete iter.second;
     }
 
     for (auto & iter : storage) {
-        free (iter.second);
+        delete iter.second;
     }
 }
 
@@ -70,16 +70,19 @@ void proxy_server::start() {
             }
         }
 
-        struct pollfd * poll_fds = (struct pollfd*) malloc(sizeof(struct pollfd*) * (count_of_clients + 1));
+        struct pollfd * poll_fds = (struct pollfd*) malloc(sizeof(struct pollfd) * (count_of_clients + 1));
 
         poll_fds[0].events = POLLIN;
         poll_fds[0].fd = socket_fd;
 
-        int current_pos = 1;
+        size_t current_pos = 1;
         for (auto & iter : requests) {
             if (iter.second->is_selectable()) {
-                poll_fds[current_pos].events = iter.second -> get_socket_select_event();
+                short ev = iter.second -> get_socket_select_event();
+                poll_fds[current_pos].events = ev;
                 poll_fds[current_pos].fd = iter.second -> get_socket();
+
+                current_pos++;
             }
         }
 
@@ -144,17 +147,17 @@ void proxy_server::start() {
                     } catch (exception_connection_closed & exception) {
                         std::cout << exception.what() << std::endl;
                         close(base_request1->get_socket());
-                        free(base_request1);
+                        delete base_request1;
                         requests.erase(poll_fds[i].fd);
                     } catch (exception_invalid_http_data & exception1) {
                         std::cout << exception1.what() << std::endl;
                         close(base_request1->get_socket());
-                        free(base_request1);
+                        delete base_request1;
                         requests.erase(poll_fds[i].fd);
                     } catch (exception_not_supported_request & request_not_supported_exception1) {
                         std::cout << request_not_supported_exception1.what() << std::endl;
                         close(base_request1->get_socket());
-                        free(base_request1);
+                        delete base_request1;
                         requests.erase(poll_fds[i].fd);
                     }
                 }
@@ -228,7 +231,7 @@ std::string proxy_server::hostname_to_ip(std::string host) {
 
 void proxy_server::onRequestSatisfied(int fd) {
     close(fd);
-    free(requests.find(fd).operator*().second);
+    delete requests.find(fd).operator*().second;
     requests.erase(fd);
 }
 
@@ -238,8 +241,8 @@ void proxy_server::onRequestPassedToServer(request_server *request_server1) {
 
 void proxy_server::onResponseReceivedFromServer(request_server *request_server1) {
     close(request_server1 -> get_socket());
-    free(request_server1);
     requests.erase(request_server1 -> get_socket());
+    delete request_server1;
 }
 
 
