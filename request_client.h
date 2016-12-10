@@ -12,6 +12,7 @@
 #include "http_request_parser.h"
 #include "exception_not_supported_request.h"
 #include "cached_data.h"
+#include "logger.h"
 
 #include <string>
 #include <sys/socket.h>
@@ -34,6 +35,7 @@ class request_client : public request_base {
 public:
     request_client(int socket_fd, std::string ip, int port) : request_base(socket_fd, port, ip) {
         request = (char*) malloc (sizeof(char) * REQUEST_SIZE);
+        logger1->add_name("client");
     }
 
     virtual void update(event_type event_type1) override {
@@ -51,14 +53,14 @@ public:
             ssize_t count_of_received_bytes = recv(get_socket(), request, REQUEST_SIZE - current_pos_in_request, 0);
 
             if (-1 == count_of_received_bytes) {
-                std::cout << "Error while receiving data" << std::endl;
+                logger1 -> log("Error while receiving data");
                 throw exception_read("Error while receiving data");
             }
 
             current_pos_in_request += count_of_received_bytes;
 
             if (0 == count_of_received_bytes) {
-                std::cout << "The connection is closed!" << std::endl;
+                logger1 -> log("The connection is closed");
                 throw exception_connection_closed(
                         "The connection with " + get_ip() + ":" + std::to_string(get_port()) + " is closed");
             }
@@ -76,7 +78,6 @@ public:
                 for (int k = 0; k < handled_request.length(); ++k) {
                     request[k] = handled_request.c_str()[k];
                 }
-                //std::cout << "The request is received!" << std::endl;
 
                 http_request_parser http_parser1(request);
 
@@ -88,21 +89,23 @@ public:
 
                 if (major_v != 1 || minor_v != 0) {
                     std::cout << "The version of http protocol is not supported" << std::endl;
+                    throw exception_not_supported_request("Not supported version of protocol");
                 } else {
                     int request_type = http_parser1.get_request_type();
                     switch (request_type) {
                         case http_request_parser::GET_REQUEST :
+                            logger1 -> log("The GET request is got from client!");
+
+                            logger1 -> add_name(get_url());
                             return request_enum::READ_FROM_CLIENT_FINISHED;
                         default:
-                            //std::cout << "The type of request is not supported" << std::endl;
+                            logger1 -> log ("Type of request is not GET");
                             throw exception_not_supported_request("Type of request is not GET");
                     }
                 }
             } else {
                 return request_enum::READ;
             }
-
-            return request_enum::READ;
         } else {
             auto data = cache;
             ssize_t count_of_sent_chars = send(get_socket(), data -> get_data_to_read(get_socket()), data -> get_count_of_bytes_that_can_be_read(get_socket()), 0);
@@ -110,6 +113,7 @@ public:
             bool result_od_send = data -> update_because_data_was_read(get_socket(), count_of_sent_chars);
 
             if(result_od_send) {
+                logger1 -> log ("The request was FINISHED and the data was sent to browser!");
                 return request_enum::WRITE_TO_CLIENT_FINISHED;
             } else {
                 return request_enum::WRITE;

@@ -116,25 +116,21 @@ void proxy_server::start() {
 
                         switch (request_value) {
                             case request_enum::READ_FROM_CLIENT_FINISHED : {
-                                std::cout << "The request is ready to be sent to the server" << std::endl;
                                 onGetRequestReceived((request_client *) base_request1);
                                 break;
                             }
 
                             case request_enum::WRITE_TO_CLIENT_FINISHED : {
-                                std::cout << "The request is satisfied" << std::endl;
                                 onRequestSatisfied(poll_fds[i].fd);
                                 break;
                             }
 
                             case request_enum::WRITE_TO_SERVER_FINISHED : {
-                                std::cout << "The request was sent to server successfully and fully" << std::endl;
                                 onRequestPassedToServer((request_server *) base_request1);
                                 break;
                             }
 
                             case request_enum::READ_FROM_SERVER_FINISHED: {
-                                std::cout << "The response was read from server" << std::endl;
                                 onResponseReceivedFromServer((request_server *) base_request1);
                                 break;
                             }
@@ -175,13 +171,6 @@ void proxy_server::stop() {
 void proxy_server::onGetRequestReceived(request_client *request_client1) {
     auto iter = storage.find(request_client1->get_url());
 
-    std::cout << request_client1 -> get_url() << std::endl;
-    if(iter == storage.end()) {
-        std::cout << "No record" << std::endl;
-    } else {
-        std::cout << "There is record" << std::endl;
-    }
-
     cached_data *cached_data1 = nullptr;
 
     while (iter != storage.end()) {
@@ -194,12 +183,13 @@ void proxy_server::onGetRequestReceived(request_client *request_client1) {
     }
 
     if (nullptr == cached_data1) {
-        std::cout << "There is no such valid cache record in the cache" << std::endl;
+        request_client1 -> log("There is no appropriate record in the cache");
+
         cached_data1 = new cached_data();
 
         int server_socket_fd = socket(AF_INET, SOCK_STREAM, 0);
         if (-1 == server_socket_fd) {
-            std::cout << "Can not create socket" << std::endl;
+            request_client1 -> log("Can not create socket to server");
             return;
         }
 
@@ -211,13 +201,11 @@ void proxy_server::onGetRequestReceived(request_client *request_client1) {
 
         cached_data1->add_server_observer(server_request1);
     } else {
-        std::cout << "There has already been such valid cache record in the cache" << std::endl;
+        request_client1 -> log("The record has already been download");
     }
 
     cached_data1 -> add_new_observer(request_client1, request_client1 -> get_socket());
     request_client1 -> change_to_write_mode(cached_data1);
-
-    std::cout << "The request is handled successfully" << std::endl;
 }
 
 std::string proxy_server::hostname_to_ip(std::string host) {
