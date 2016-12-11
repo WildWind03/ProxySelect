@@ -21,7 +21,7 @@ class cached_data : public observable {
     observer *server_observer;
 
 public:
-    const static size_t MAX_CAPACITY_OF_CACHE_RECORD = 512000;
+    const static size_t MAX_CAPACITY_OF_CACHE_RECORD = 8000;
 
     bool is_finished = false;
     bool is_streaming = false;
@@ -57,7 +57,7 @@ public:
         *pos += count_of_read_bytes;
 
         if (is_streaming) {
-            size_t min = 0;
+            size_t min = MAX_CAPACITY_OF_CACHE_RECORD;
             for (auto &iter : pos_in_cache) {
                 size_t possible_new_min = iter.second;
                 if (possible_new_min < min) {
@@ -103,8 +103,10 @@ public:
     void update_because_data_was_add(size_t count_of_add_data) {
         this -> length += count_of_add_data;
 
-        if (this -> length >= MAX_CAPACITY_OF_CACHE_RECORD && !is_streaming) {
+        if ((this -> length >= MAX_CAPACITY_OF_CACHE_RECORD) && !is_streaming) {
             this -> is_streaming = true;
+
+            std::cout << "Too much data. Streaming mode is enabled!" << std::endl;
         }
 
         if (this -> length >= MAX_CAPACITY_OF_CACHE_RECORD) {
