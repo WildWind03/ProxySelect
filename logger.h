@@ -7,17 +7,34 @@
 
 #include <string>
 #include <iostream>
+#include <fstream>
 
 class logger {
     std::string name;
+    std::string filename;
+
+    const std::string DEFAULT_NAME = "DEFAULT";
 
 public:
     logger(std::string name) {
         this -> name = "[" + name + "] ";
+        this -> filename = DEFAULT_NAME;
     }
 
+    logger(std::string name, std::string filename)  {
+        this -> name = "[" + name + "] ";
+        this -> filename = filename;
+    }
+
+
     void log(std::string string) {
-        std::cout << name << string << std::endl;
+        if (DEFAULT_NAME == filename) {
+            std::cout << name << string << std::endl;
+        } else {
+            std::ofstream ofstream1(filename, std::ios_base::app);
+            ofstream1 << name << string << std::endl;
+            ofstream1.close();
+        }
     }
 
     void add_name(std::string string) {

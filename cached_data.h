@@ -21,7 +21,7 @@ class cached_data : public observable {
     observer *server_observer;
 
 public:
-    const static size_t MAX_CAPACITY_OF_CACHE_RECORD = 128000;
+    const static size_t MAX_CAPACITY_OF_CACHE_RECORD = 512000;
 
     bool is_finished = false;
     bool is_streaming = false;
@@ -111,6 +111,7 @@ public:
 
     void mark_finished() {
         is_finished = true;
+        notify(event_type::ENABLE_READ);
     }
 
 

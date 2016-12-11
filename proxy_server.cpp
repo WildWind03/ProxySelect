@@ -195,7 +195,7 @@ void proxy_server::onGetRequestReceived(request_client *request_client1) {
 
         std::string ip = hostname_to_ip(request_client1 -> get_host());
 
-        request_server *server_request1 = new request_server(server_socket_fd, ip, HTTP_PORT, request_client1 -> get_request(), request_client1 -> get_size_of_request(), cached_data1);
+        request_server *server_request1 = new request_server(server_socket_fd, ip, HTTP_PORT, request_client1 -> get_request(), request_client1 -> get_size_of_request(), cached_data1, request_client1 -> get_url());
         requests.insert(std::pair<int, request_base*>(server_socket_fd, server_request1));
         storage.insert(std::pair<std::string, cached_data*> (request_client1->get_url(), cached_data1));
 
@@ -213,6 +213,8 @@ std::string proxy_server::hostname_to_ip(std::string host) {
     getaddrinfo(host.c_str(), NULL, NULL, &res);
     char ip_address[50];
     getnameinfo(res->ai_addr, res->ai_addrlen, ip_address, NI_MAXHOST, NULL, 0, NI_NUMERICHOST);
+
+    freeaddrinfo(res);
 
     return std::string(ip_address);
 }

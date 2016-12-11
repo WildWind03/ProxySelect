@@ -13,12 +13,14 @@
 #include "exception_not_supported_request.h"
 #include "cached_data.h"
 #include "logger.h"
+#include "url_util.h"
 
 #include <string>
 #include <sys/socket.h>
 #include <iostream>
 #include <unistd.h>
 #include <sys/poll.h>
+#include <algorithm>
 
 class request_client : public request_base {
     const static size_t REQUEST_SIZE = 4096;
@@ -32,10 +34,12 @@ class request_client : public request_base {
     cached_data *cache;
     std::string host;
 
+    logger *logger1;
+
 public:
     request_client(int socket_fd, std::string ip, int port) : request_base(socket_fd, port, ip) {
+        logger1 = new logger(ip + ":" + std::to_string(port));
         request = (char*) malloc (sizeof(char) * REQUEST_SIZE);
-        logger1->add_name("client");
     }
 
     virtual void update(event_type event_type1) override {
@@ -68,10 +72,8 @@ public:
                 std::string handled_request = request;
                 free(request);
 
-                size_t keep_alive_substr_pos = handled_request.find("keep-alive");
-                if (keep_alive_substr_pos != handled_request.length()) {
-                    handled_request.replace(keep_alive_substr_pos, 10, "Close     ");
-                }
+
+                handled_request = url_util::change_type_of_connection_to_close(handled_request);
 
                 request = (char*) malloc(sizeof(char) * handled_request.length());
 
@@ -93,11 +95,14 @@ public:
                 } else {
                     int request_type = http_parser1.get_request_type();
                     switch (request_type) {
-                        case http_request_parser::GET_REQUEST :
-                            logger1 -> log("The GET request is got from client!");
+                        case http_request_parser::GET_REQUEST : {
+                            logger1->log("The GET request is got from client!");
+                            delete logger1;
 
-                            logger1 -> add_name(get_url());
+                            logger1 = new logger("client", "/home/alexander/ClionProjects/Proxy/log/" + url_util::get_logger_filename_by_url(url));
+
                             return request_enum::READ_FROM_CLIENT_FINISHED;
+                        }
                         default:
                             logger1 -> log ("Type of request is not GET");
                             throw exception_not_supported_request("Type of request is not GET");
@@ -150,8 +155,13 @@ public:
         return is_read ? polling_event : pollout_event;
     }
 
+    void log(std::string string) {
+        logger1 -> log(string);
+    }
+
     virtual ~request_client() {
         free(request);
+        delete(logger1);
     }
 };
 #endif //PROXY_GET_REQUEST_FROM_CLIENT_H

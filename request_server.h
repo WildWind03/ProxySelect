@@ -22,10 +22,13 @@ class request_server : public request_base {
     bool is_write = true;
     size_t pos_in_sending_data = 0;
     cached_data *cached_data1;
+    logger *logger1;
 
 public:
-    request_server(int socket_fd, std::string ip, int port, std::string request, size_t size, cached_data* cached_data2) : request_base(socket_fd, port, ip) {
-        logger1 -> add_name("server");
+    request_server(int socket_fd, std::string ip, int port, std::string request, size_t size, cached_data* cached_data2, std::string url) : request_base(socket_fd, port, ip) {
+        logger1 = new logger("server", "/home/alexander/ClionProjects/Proxy/log/" + url_util::get_logger_filename_by_url(url));
+
+        logger1->log(request);
 
         this -> request = request;
         this -> request_size = size;
@@ -66,6 +69,8 @@ public:
             ssize_t count_of_received_bytes = recv(get_socket(), cached_data1 -> get_data_to_write(),
                                            cached_data1 -> get_max_data_can_be_written(), 0);
 
+            logger1 -> log(std::to_string(count_of_received_bytes) + " bytes was read");
+
             if (-1 == count_of_received_bytes) {
                 logger1 -> log ("Error while receiving data");
                 throw exception_read("Error while receiving data");
@@ -104,7 +109,7 @@ public:
     }
 
     virtual ~request_server() {
-
+        delete(logger1);
     }
 };
 

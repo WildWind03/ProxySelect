@@ -17,7 +17,6 @@ class request_base : public observer {
     std::string ip;
 
 protected:
-    logger *logger1;
 
     bool is_finished_request(size_t count_of_received_bytes, size_t current_pos_in_request, char* request) {
         size_t start_pos_for_checking_for_end_of_request;
@@ -44,7 +43,6 @@ public:
         this -> socket_fd = socket_fd;
         this -> port;
         this -> ip = ip;
-        logger1 = new logger(ip + ":" + std::to_string(port));
     }
 
     void set_selectable(bool selectable) {
@@ -65,10 +63,6 @@ public:
 
     int get_socket() {
         return socket_fd;
-    }
-
-    void log(std::string string) {
-        logger1->log(string);
     }
 
     virtual short get_socket_select_event() = 0;

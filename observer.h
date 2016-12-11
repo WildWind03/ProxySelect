@@ -10,6 +10,8 @@
 class observer {
 
 public:
+//todo delete observers after request is get
+//todo delete cache records
 
     virtual void update(event_type event_type1) = 0;
 };
