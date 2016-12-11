@@ -21,7 +21,7 @@ class cached_data : public observable {
     observer *server_observer;
 
 public:
-    const static size_t MAX_CAPACITY_OF_CACHE_RECORD = 8000;
+    const static size_t MAX_CAPACITY_OF_CACHE_RECORD = 128;
 
     bool is_finished = false;
     bool is_streaming = false;
@@ -105,8 +105,6 @@ public:
 
         if ((this -> length >= MAX_CAPACITY_OF_CACHE_RECORD) && !is_streaming) {
             this -> is_streaming = true;
-
-            std::cout << "Too much data. Streaming mode is enabled!" << std::endl;
         }
 
         if (this -> length >= MAX_CAPACITY_OF_CACHE_RECORD) {

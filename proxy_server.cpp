@@ -155,6 +155,11 @@ void proxy_server::start() {
                         close(base_request1->get_socket());
                         delete base_request1;
                         requests.erase(poll_fds[i].fd);
+                    } catch (exception_can_not_connect & exception_can_not_connect1) {
+                        std::cout << exception_can_not_connect1.what() << std::endl;
+                        close(base_request1->get_socket());
+                        delete base_request1;
+                        requests.erase(poll_fds[i].fd);
                     }
                 }
         }
@@ -169,13 +174,13 @@ void proxy_server::stop() {
 }
 
 void proxy_server::onGetRequestReceived(request_client *request_client1) {
-    auto iter = storage.find(request_client1->get_url());
-
     cached_data *cached_data1 = nullptr;
 
+    auto iter = storage.begin();
+
     while (iter != storage.end()) {
-        if (!iter.operator*().second -> is_streaming) {
-            cached_data1 = iter.operator*().second;
+        if (!iter -> second->is_streaming && iter.operator*().first == request_client1->get_url()) {
+            cached_data1 = iter -> second;
             break;
         }
 
@@ -220,12 +225,13 @@ std::string proxy_server::hostname_to_ip(std::string host) {
 }
 
 void proxy_server::onRequestSatisfied(request_client* request_client1) {
-    cached_data* cached_data1 = request_client1 -> get_cached_data();
-    auto iter = storage.find(request_client1->get_url());
+    auto iter = storage.begin();
 
     while (iter != storage.end()) {
-        if (cached_data1 -> is_streaming && (0 == iter.operator*().second->get_count_of_clients())) {
+        if (iter -> second->is_streaming && (0 == iter -> second->get_count_of_clients()) && iter -> second->is_finished) {
             storage.erase(iter);
+            iter = storage.begin();
+            continue;
         }
 
         iter++;
@@ -241,14 +247,13 @@ void proxy_server::onRequestPassedToServer(request_server *request_server1) {
 }
 
 void proxy_server::onResponseReceivedFromServer(request_server *request_server1) {
-    cached_data* cached_data1 = request_server1 -> get_cached_data();
-
-    auto iter = storage.find(request_server1->get_url());
+    auto iter = storage.begin();
 
     while (iter != storage.end()) {
-        if (cached_data1 -> is_streaming && (0 == iter.operator*().second->get_count_of_clients())) {
-            request_server1 -> log("Invalid cache record was found and deleted!");
+        if (iter -> second->is_streaming && (0 == iter -> second->get_count_of_clients()) && iter -> second->is_finished) {
             storage.erase(iter);
+            iter = storage.begin();
+            continue;
         }
 
         iter++;

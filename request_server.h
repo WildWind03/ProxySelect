@@ -42,7 +42,9 @@ public:
         sockaddr_in1.sin_port = htons(port);
         sockaddr_in1.sin_addr.s_addr = inet_addr(ip.c_str());
 
+        std::cout << "COONECT START" << std::endl;
         int connect_result = connect(socket_fd, (struct sockaddr *) &sockaddr_in1, sizeof(sockaddr_in1));
+        std::cout << "CONNECT FINISH" << std::endl;
 
         if (-1 == connect_result) {
             logger1 -> log("Can not connect to a server");
@@ -54,6 +56,8 @@ public:
         if (is_write) {
             ssize_t count_of_send_data = send(get_socket(), request.c_str() + pos_in_sending_data,
                                               request_size - pos_in_sending_data, 0);
+
+            logger1 -> log(count_of_send_data + " was sent to the server");
 
             if (-1 == count_of_send_data) {
                 logger1 -> log("Error while writng");
@@ -86,7 +90,13 @@ public:
                 return request_enum::READ_FROM_SERVER_FINISHED;
             }
 
+            bool is_streaming_start = cached_data1 -> is_streaming;
             cached_data1 -> update_because_data_was_add(count_of_received_bytes);
+            bool is_streaming_end = cached_data1 -> is_streaming;
+
+            if (!is_streaming_start && is_streaming_end) {
+                logger1 -> log ("Stream mode is enabled!");
+            }
 
             return request_enum::READ;
         }
