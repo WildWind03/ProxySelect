@@ -26,8 +26,12 @@ class request_server : public request_base {
     cached_data *cached_data1;
     logger *logger1;
 
+    bool is_connected;
+
 public:
     request_server(int socket_fd, std::string ip, int port, std::string request, size_t size, cached_data* cached_data2, std::string url) : request_base(socket_fd, port, ip) {
+        is_connected = false;
+
         this -> url = url;
         logger1 = new logger("server", "/home/alexander/ClionProjects/Proxy/log/" + url_util::get_logger_filename_by_url(url));
 
@@ -42,17 +46,37 @@ public:
         sockaddr_in1.sin_port = htons(port);
         sockaddr_in1.sin_addr.s_addr = inet_addr(ip.c_str());
 
-        std::cout << "COONECT START" << std::endl;
-        int connect_result = connect(socket_fd, (struct sockaddr *) &sockaddr_in1, sizeof(sockaddr_in1));
-        std::cout << "CONNECT FINISH" << std::endl;
+        bool is_socket_block_mode = url_util::set_socket_blocking_enabled(socket_fd, false);
 
-        if (-1 == connect_result) {
-            logger1 -> log("Can not connect to a server");
-            throw exception_can_not_connect("Can not connect to server");
+        if (!is_socket_block_mode) {
+            throw exception_can_not_connect("Can't turn a socket on non blocking mode");
+        }
+
+        log("Start connect");
+        int connect_result = connect(socket_fd, (struct sockaddr *) &sockaddr_in1, sizeof(sockaddr_in1));
+
+        if (0 == connect_result) {
+            is_connected = true;
+            log("Connect finish");
         }
     }
 
     virtual request_enum exec() override {
+        if (!is_connected) {
+            int result;
+            socklen_t result_len = sizeof(result);
+            if (getsockopt(get_socket(), SOL_SOCKET, SO_ERROR, &result, &result_len) < 0) {
+                throw exception_can_not_connect("Can not connect to server");
+            }
+
+            if (result != 0) {
+                throw exception_can_not_connect("Can not connect to server");
+            }
+
+            is_connected = true;
+            log("Connect finish");
+        }
+
         if (is_write) {
             ssize_t count_of_send_data = send(get_socket(), request.c_str() + pos_in_sending_data,
                                               request_size - pos_in_sending_data, 0);
@@ -107,6 +131,10 @@ public:
     }
 
     virtual short get_socket_select_event() override {
+        if (!is_connected) {
+            return POLLOUT;
+        }
+
         short write_event = POLLOUT;
         short read_event = POLLIN;
         return is_write ? write_event : read_event;

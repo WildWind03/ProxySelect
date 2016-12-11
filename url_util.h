@@ -7,6 +7,7 @@
 
 #include <string>
 #include <algorithm>
+#include <fcntl.h>
 
 class url_util {
 public:
@@ -35,6 +36,15 @@ public:
         }
 
         return request;
+    }
+
+    bool static set_socket_blocking_enabled(int fd, bool blocking) {
+        if (fd < 0) return false;
+
+        int flags = fcntl(fd, F_GETFL, 0);
+        if (flags < 0) return false;
+        flags = blocking ? (flags&~O_NONBLOCK) : (flags|O_NONBLOCK);
+        return fcntl(fd, F_SETFL, flags) == 0;
     }
 };
 
