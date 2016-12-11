@@ -121,7 +121,7 @@ void proxy_server::start() {
                             }
 
                             case request_enum::WRITE_TO_CLIENT_FINISHED : {
-                                onRequestSatisfied(poll_fds[i].fd);
+                                onRequestSatisfied((request_client*) base_request1);
                                 break;
                             }
 
@@ -219,10 +219,21 @@ std::string proxy_server::hostname_to_ip(std::string host) {
     return std::string(ip_address);
 }
 
-void proxy_server::onRequestSatisfied(int fd) {
-    close(fd);
-    delete requests.find(fd).operator*().second;
-    requests.erase(fd);
+void proxy_server::onRequestSatisfied(request_client* request_client1) {
+    cached_data* cached_data1 = request_client1 -> get_cached_data();
+    auto iter = storage.find(request_client1->get_url());
+
+    while (iter != storage.end()) {
+        if (cached_data1 -> is_streaming && (0 == iter.operator*().second->get_count_of_clients())) {
+            storage.erase(iter);
+        }
+
+        iter++;
+    }
+
+    close(request_client1->get_socket());
+    requests.erase(request_client1->get_socket());
+    delete request_client1;
 }
 
 void proxy_server::onRequestPassedToServer(request_server *request_server1) {
@@ -230,6 +241,19 @@ void proxy_server::onRequestPassedToServer(request_server *request_server1) {
 }
 
 void proxy_server::onResponseReceivedFromServer(request_server *request_server1) {
+    cached_data* cached_data1 = request_server1 -> get_cached_data();
+
+    auto iter = storage.find(request_server1->get_url());
+
+    while (iter != storage.end()) {
+        if (cached_data1 -> is_streaming && (0 == iter.operator*().second->get_count_of_clients())) {
+            request_server1 -> log("Invalid cache record was found and deleted!");
+            storage.erase(iter);
+        }
+
+        iter++;
+    }
+
     close(request_server1 -> get_socket());
     requests.erase(request_server1 -> get_socket());
     delete request_server1;

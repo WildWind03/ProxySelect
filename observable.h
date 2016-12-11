@@ -10,6 +10,7 @@
 
 class observable {
 
+protected:
     std::map<int, observer*> observers;
 
 public:

@@ -20,7 +20,7 @@ class proxy_server {
     std::map<int, request_base*> requests;
     std::multimap<std::string, cached_data*> storage;
 
-    void onRequestSatisfied(int fd);
+    void onRequestSatisfied(request_client* request_client1);
     void onGetRequestReceived(request_client* request_client1);
     void onRequestPassedToServer(request_server *request_server1);
     void onResponseReceivedFromServer(request_server *request_server1);

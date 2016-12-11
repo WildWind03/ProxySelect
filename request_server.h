@@ -19,6 +19,8 @@ class request_server : public request_base {
     std::string request;
     size_t request_size;
 
+    std::string url;
+
     bool is_write = true;
     size_t pos_in_sending_data = 0;
     cached_data *cached_data1;
@@ -26,6 +28,7 @@ class request_server : public request_base {
 
 public:
     request_server(int socket_fd, std::string ip, int port, std::string request, size_t size, cached_data* cached_data2, std::string url) : request_base(socket_fd, port, ip) {
+        this -> url = url;
         logger1 = new logger("server", "/home/alexander/ClionProjects/Proxy/log/" + url_util::get_logger_filename_by_url(url));
 
         logger1->log(request);
@@ -79,6 +82,7 @@ public:
             if (0 == count_of_received_bytes) {
                 cached_data1 -> mark_finished();
                 logger1 -> log ("The response is received from the server");
+
                 return request_enum::READ_FROM_SERVER_FINISHED;
             }
 
@@ -106,6 +110,18 @@ public:
         if (event_type1 == event_type::DISABLE_WRITE) {
             set_selectable(false);
         }
+    }
+
+    std::string get_url() {
+        return url;
+    }
+
+    void log(std::string string) {
+        logger1 -> log(string);
+    }
+
+    cached_data* get_cached_data() {
+        return cached_data1;
     }
 
     virtual ~request_server() {

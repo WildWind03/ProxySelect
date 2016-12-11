@@ -29,6 +29,7 @@ public:
     virtual void add_new_observer(observer *observer1, int key) override {
         observable::add_new_observer(observer1, key);
         pos_in_cache.insert(std::pair<int, int> (key, 0));
+        min_pos_in_cache_record = 0;
     }
 
     cached_data() {
@@ -64,20 +65,32 @@ public:
                 }
             }
 
-            if (min < min_pos_in_cache_record) {
+            if (min > min_pos_in_cache_record) {
                 min_pos_in_cache_record = min;
             }
 
             if (min_pos_in_cache_record == MAX_CAPACITY_OF_CACHE_RECORD) {
                 min_pos_in_cache_record = 0;
                 length = 0;
+
                 notify(event_type::DISABLE_READ);
-                server_observer->update(event_type::ENABLE_WRITE);
+                server_observer -> update(event_type::ENABLE_WRITE);
+
+                for (auto & iter : pos_in_cache) {
+                    iter.second = 0;
+                }
             }
         }
 
         if (is_finished) {
-            return *pos == length;
+            bool is_record_read_fully = (*pos == length);
+            if (is_record_read_fully) {
+                pos_in_cache.erase(fd);
+                observers.erase(fd);
+                return true;
+            } else {
+                return false;
+            }
         } else {
             if (*pos == length) {
                 notify(fd, event_type::DISABLE_READ);
@@ -112,6 +125,10 @@ public:
     void mark_finished() {
         is_finished = true;
         notify(event_type::ENABLE_READ);
+    }
+
+    size_t get_count_of_clients() {
+        return pos_in_cache.size();
     }
 
 

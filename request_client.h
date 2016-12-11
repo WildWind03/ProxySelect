@@ -112,9 +112,11 @@ public:
                 return request_enum::READ;
             }
         } else {
+
             auto data = cache;
             ssize_t count_of_sent_chars = send(get_socket(), data -> get_data_to_read(get_socket()), data -> get_count_of_bytes_that_can_be_read(get_socket()), 0);
 
+            logger1 -> log (std::to_string(count_of_sent_chars) + " was sent to the browser");
             bool result_od_send = data -> update_because_data_was_read(get_socket(), count_of_sent_chars);
 
             if(result_od_send) {
@@ -157,6 +159,10 @@ public:
 
     void log(std::string string) {
         logger1 -> log(string);
+    }
+
+    cached_data* get_cached_data() {
+        return cache;
     }
 
     virtual ~request_client() {
