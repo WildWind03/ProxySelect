@@ -21,6 +21,8 @@
 #include <unistd.h>
 #include <sys/poll.h>
 #include <algorithm>
+#include <sys/socket.h>
+#include <fcntl.h>
 
 class request_client : public request_base {
     const static size_t REQUEST_SIZE = 4096;
@@ -90,9 +92,9 @@ public:
                 host = http_parser1.get_host();
 
                 if (major_v != 1 || minor_v != 0) {
-                    std::cout << "The version of http protocol is not supported" << std::endl;
-                    throw exception_not_supported_request("Not supported version of protocol");
-                } else {
+                    std::cout << "The version of http protocol is not supported" + std::to_string(major_v) + "." + std::to_string(minor_v) << std::endl;
+                    //throw exception_not_supported_request("Not supported version of protocol");
+                } //else {
                     int request_type = http_parser1.get_request_type();
                     switch (request_type) {
                         case http_request_parser::GET_REQUEST : {
@@ -107,14 +109,19 @@ public:
                             logger1 -> log ("Type of request is not GET");
                             throw exception_not_supported_request("Type of request is not GET");
                     }
-                }
+               // }
             } else {
                 return request_enum::READ;
             }
         } else {
-
+            //todo FIX_SIGPIPE_BUGS
             auto data = cache;
-            ssize_t count_of_sent_chars = send(get_socket(), data -> get_data_to_read(get_socket()), data -> get_count_of_bytes_that_can_be_read(get_socket()), 0);
+            ssize_t count_of_sent_chars = send(get_socket(), data -> get_data_to_read(get_socket()), data -> get_count_of_bytes_that_can_be_read(get_socket()), MSG_NOSIGNAL);
+
+            std::cout << count_of_sent_chars << std::endl;
+            if (-1 == count_of_sent_chars) {
+                std::cerr << "STOP";
+            }
 
             logger1 -> log (std::to_string(count_of_sent_chars) + " was sent to the browser");
             bool result_od_send = data -> update_because_data_was_read(get_socket(), count_of_sent_chars);

@@ -108,7 +108,7 @@ void proxy_server::start() {
         }
 
         for (int i = 1; i < count_of_clients + 1; i++) {
-                if (poll_fds[i].revents == POLLIN || poll_fds[i].revents == POLLOUT) {
+                if (poll_fds[i].revents != 0) {
                     request_base *base_request1 = requests.find(poll_fds[i].fd).operator*().second;
 
                     try {
