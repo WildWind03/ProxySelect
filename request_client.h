@@ -7,14 +7,13 @@
 
 #include "request_base.h"
 #include "exception_too_much_data.h"
-#include "exception_connection_closed_while_sending_request.h"
 #include "exception_read_from_browser.h"
 #include "http_request_parser.h"
 #include "exception_not_supported_request.h"
 #include "cached_data.h"
 #include "logger.h"
 #include "url_util.h"
-#include "exception_connection_closed_while_receiving_response.h"
+#include "exception_write_to_browser.h"
 
 #include <string>
 #include <sys/socket.h>
@@ -71,7 +70,7 @@ public:
                 throw exception_read_from_browser(
                         "The connection with " + get_ip() + ":" + std::to_string(get_port()) + " is closed");
             }
-            
+
             if (is_finished_request(count_of_received_bytes, current_pos_in_request, request)) {
                 std::string handled_request = request;
                 free(request);
@@ -121,7 +120,7 @@ public:
 
             if (-1 == count_of_sent_chars) {
                 logger1 -> log("Error while sending data to browser");
-                throw exception_connection_closed_while_receiving_response("The browser is disconnected! URL - " + get_url());
+                throw exception_write_to_browser("The browser is disconnected! URL - " + get_url());
             }
 
             logger1 -> log (std::to_string(count_of_sent_chars) + " was sent to the browser");

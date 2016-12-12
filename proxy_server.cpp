@@ -143,27 +143,47 @@ void proxy_server::start() {
                         }
 
                     } catch (exception_read_from_browser & exception) {
-                        close(base_request1->get_socket());
-                        delete base_request1;
-                        requests.erase(poll_fds[i].fd);
+                        delete_request(base_request1);
+
                     } catch (exception_invalid_http_data & exception1) {
+
                         std::cout << exception1.what() << std::endl;
-                        close(base_request1->get_socket());
-                        delete base_request1;
-                        requests.erase(poll_fds[i].fd);
-                    } catch (exception_not_supported_request & request_not_supported_exception1) { ;
-                        close(base_request1->get_socket());
-                        delete base_request1;
-                        requests.erase(poll_fds[i].fd);
+                        delete_request(base_request1);
+
+                    } catch (exception_not_supported_request & request_not_supported_exception1) {
+                        delete_request(base_request1);
+
                     } catch (exception_can_not_connect & exception_can_not_connect1) {
+
                         request_server *request_server1 = (request_server*) base_request1;
-                        delete_record_in_cache(request_server1->get_cached_data());
+                        delete_record_from_cache(request_server1->get_cached_data());
                         delete_all_clients_connected_to_cache_data(request_server1->get_cached_data());
-                        //std::cout << exception_can_not_connect1.what() << std::endl;
-                        close(base_request1->get_socket());
-                        delete base_request1;
-                        requests.erase(poll_fds[i].fd);
-                    } catch (exception_connection_closed_while_receiving_response & exception_connection_closed_while_receiving_response1) {
+                        delete request_server1 -> get_cached_data();
+
+                        delete_request(base_request1);
+
+                    } catch (exception_write_to_server & write_to_server) {
+
+                        request_server *request_server1 = (request_server*) base_request1;
+                        delete_record_from_cache(request_server1->get_cached_data());
+                        delete_all_clients_connected_to_cache_data(request_server1->get_cached_data());
+                        delete request_server1 -> get_cached_data();
+
+                        delete_request(base_request1);
+
+                    } catch (exception_read_from_server & read_exception) {
+
+                        request_server *request_server1 = (request_server*) base_request1;
+
+                        std::cout << "Exception while getting data from server! URL - " + request_server1 -> get_url() << std::endl;
+
+                        delete_record_from_cache(request_server1->get_cached_data());
+                        delete_all_clients_connected_to_cache_data(request_server1->get_cached_data());
+                        delete request_server1 -> get_cached_data();
+
+                        delete_request(base_request1);
+
+                    } catch (exception_write_to_browser & exception_connection_closed_while_receiving_response1) {
                         request_client *request_client1 = (request_client*) base_request1;
 
                         std::cout << exception_connection_closed_while_receiving_response1.what() << std::endl;
@@ -171,55 +191,16 @@ void proxy_server::start() {
 
                         cached_data1->delete_observer(request_client1 -> get_socket());
 
-                        if (cached_data1 -> is_finished && cached_data1 -> is_streaming && 0 == cached_data1 -> get_count_of_clients()) {
-                            cached_data1->is_error = true;
-                        }
-
-                        auto iter = storage.begin();
-
-                        while (iter != storage.end()) {
-                            if (iter.operator*().second->is_error) {
-                                storage.erase(iter);
-                                free(iter.operator*().second);
-                                break;
-                            }
-
-                            iter++;
-                        }
-
-                        requests.erase(request_client1 -> get_socket());
-                        close(request_client1 -> get_socket());
-                        delete base_request1;
-                    } catch (exception_read_from_server & read_exception) {
-                        request_server* request_server1 = (request_server*) base_request1;
-
-                        std::cout << "Exception while getting data from server! URL - " + request_server1 -> get_url() << std::endl;
-
-                        cached_data* cached_data1 = request_server1->get_cached_data();
-                        auto map = cached_data1 -> get_observers();
-
-                        for (auto iter : map) {
-                            request_client * request_client1 = (request_client*) iter.second;
-                            requests.erase(request_client1->get_socket());
-                            close(request_client1->get_socket());
-                            delete request_client1;
-                        }
-
-                        auto iter = storage.begin();
-
-                        while(iter != storage.end())  {
-                            if (iter.operator*().second->is_error) {
-                                storage.erase(iter);
-                                break;
+                        if (cached_data1->is_finished) {
+                            if (cached_data1->is_streaming) {
+                                if (0 == cached_data1->get_count_of_clients()) {
+                                    delete_record_from_cache(cached_data1);
+                                    delete cached_data1;
+                                }
                             }
                         }
 
-                        requests.erase(request_server1->get_socket());
-                        close (request_server1->get_socket());
-                        delete request_server1;
-
-                    } catch (exception_write_to_server & write_to_server) {
-
+                        delete_request(request_client1);
                     }
                 }
         }
@@ -333,7 +314,7 @@ void proxy_server::onResponseReceivedFromServer(request_server *request_server1)
     delete request_server1;
 }
 
-void proxy_server::delete_record_in_cache(cached_data *cached_data1) {
+void proxy_server::delete_record_from_cache(cached_data *cached_data1) {
     auto iter = storage.begin();
 
     while (iter != storage.end()) {
@@ -341,18 +322,34 @@ void proxy_server::delete_record_in_cache(cached_data *cached_data1) {
             storage.erase(iter);
             break;
         }
+
+        iter++;
     }
 }
 
 void proxy_server::delete_all_clients_connected_to_cache_data(cached_data *cached_data1) {
-    auto iter = cached_data1->get_observers().begin();
+    for (auto it = cached_data1->get_observers().cbegin(); it != cached_data1->get_observers().cend(); ) {
+        request_client *request_client1 = (request_client*) it.operator*().second;
 
-    while (iter != cached_data1->get_observers().end()) {
+        cached_data1->get_observers().erase(it++);    // or "it = m.erase(it)" since C++11
+        delete_request(request_client1);
+    }
+
+
+    /*while (iter != cached_data1->get_observers().end()) {
         request_client *request_client1 = (request_client*) iter.operator*().second;
         requests.erase(request_client1->get_socket());
         close(request_client1->get_socket());
         delete request_client1;
+        iter++;
     }
+     */
+}
+
+void proxy_server::delete_request(request_base *base_request1) {
+    requests.erase(base_request1->get_socket());
+    close (base_request1->get_socket());
+    delete base_request1;
 }
 
 

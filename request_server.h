@@ -13,7 +13,6 @@
 #include <iostream>
 #include "request_base.h"
 #include "exception_can_not_connect.h"
-#include "exception_write_to_browser.h"
 #include "exception_write_to_server.h"
 #include "exception_read_from_server.h"
 
