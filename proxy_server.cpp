@@ -11,6 +11,7 @@
 
 #include "proxy_server.h"
 #include "exception_proxy_not_created.h"
+#include "http_response_parser.h"
 
 proxy_server::proxy_server(int port) {
     if (port <= 0 || port > MAX_VALUE_FOR_PORT) {
@@ -83,6 +84,7 @@ void proxy_server::start() {
                 short ev = iter.second -> get_socket_select_event();
                 poll_fds[current_pos].events = ev;
                 poll_fds[current_pos].fd = iter.second -> get_socket();
+                poll_fds[current_pos].revents = 0;
 
                 current_pos++;
             }
@@ -110,8 +112,9 @@ void proxy_server::start() {
         }
 
         for (int i = 1; i < count_of_clients + 1; i++) {
+
+            request_base *base_request1 = requests.find(poll_fds[i].fd).operator*().second;
                 if (poll_fds[i].revents != 0) {
-                    request_base *base_request1 = requests.find(poll_fds[i].fd).operator*().second;
 
                     try {
                         request_enum request_value = base_request1 -> exec();
@@ -143,18 +146,22 @@ void proxy_server::start() {
                         }
 
                     } catch (exception_read_from_browser & exception) {
+                        //std::cerr << exception.what() << std::endl;
                         delete_request(base_request1);
 
                     } catch (exception_invalid_http_data & exception1) {
 
-                        std::cout << exception1.what() << std::endl;
+                        //std::cerr << exception1.what() << std::endl;
                         delete_request(base_request1);
 
                     } catch (exception_not_supported_request & request_not_supported_exception1) {
+                        //std::cerr << request_not_supported_exception1.what() << std::endl;
+
                         delete_request(base_request1);
 
                     } catch (exception_can_not_connect & exception_can_not_connect1) {
 
+                        //std::cerr << exception_can_not_connect1.what() << std::endl;
                         request_server *request_server1 = (request_server*) base_request1;
                         delete_record_from_cache(request_server1->get_cached_data());
                         delete_all_clients_connected_to_cache_data(request_server1->get_cached_data());
@@ -163,6 +170,8 @@ void proxy_server::start() {
                         delete_request(base_request1);
 
                     } catch (exception_write_to_server & write_to_server) {
+
+                        //std::cerr << write_to_server.what() << std::endl;
 
                         request_server *request_server1 = (request_server*) base_request1;
                         delete_record_from_cache(request_server1->get_cached_data());
@@ -173,6 +182,7 @@ void proxy_server::start() {
 
                     } catch (exception_read_from_server & read_exception) {
 
+                        //std::cerr << read_exception.what() << std::endl;
                         request_server *request_server1 = (request_server*) base_request1;
 
                         std::cout << "Exception while getting data from server! URL - " + request_server1 -> get_url() << std::endl;
@@ -184,6 +194,9 @@ void proxy_server::start() {
                         delete_request(base_request1);
 
                     } catch (exception_write_to_browser & exception_connection_closed_while_receiving_response1) {
+
+                        //std::cerr << exception_connection_closed_while_receiving_response1.what() << std::endl;
+
                         request_client *request_client1 = (request_client*) base_request1;
 
                         std::cout << exception_connection_closed_while_receiving_response1.what() << std::endl;
@@ -291,6 +304,17 @@ void proxy_server::onRequestSatisfied(request_client* request_client1) {
         }
     }
 
+    if (!cached_data1 -> is_streaming && (0 == cached_data1->get_count_of_clients())) {
+        char* data = request_client1->get_cached_data()->get_data();
+        http_response_parser http_response_parser1(data);
+
+        if (!http_response_parser1.is_ok_response()) {
+            delete_record_from_cache(cached_data1);
+            delete cached_data1;
+            request_client1 -> log("Answer is NOT OK. The record will be deleted!");
+        }
+    }
+
     delete_request(request_client1);
 }
 
@@ -332,11 +356,8 @@ void proxy_server::delete_record_from_cache(cached_data *cached_data1) {
 }
 
 void proxy_server::delete_all_clients_connected_to_cache_data(cached_data *cached_data1) {
-    for (auto it = cached_data1->get_observers().cbegin(); it != cached_data1->get_observers().cend(); ) {
-        request_client *request_client1 = (request_client*) it.operator*().second;
-
-        cached_data1->get_observers().erase(it++);    // or "it = m.erase(it)" since C++11
-        delete_request(request_client1);
+    for (auto iter : cached_data1->get_observers()) {
+        delete_request( (request_client*) iter.second);
     }
 }
 

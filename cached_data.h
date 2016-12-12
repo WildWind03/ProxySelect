@@ -21,11 +21,10 @@ class cached_data : public observable {
     observer *server_observer;
 
 public:
-    const static size_t MAX_CAPACITY_OF_CACHE_RECORD = 8;
+    const static size_t MAX_CAPACITY_OF_CACHE_RECORD = 100 * 1024 * 1024;
 
     bool is_finished = false;
     bool is_streaming = false;
-    bool is_error = false;
 
     virtual void add_new_observer(observer *observer1, int key) override {
         observable::add_new_observer(observer1, key);
@@ -165,6 +164,10 @@ public:
 
     size_t get_count_of_clients() {
         return pos_in_cache.size();
+    }
+
+    char* get_data() {
+        return data;
     }
 
 

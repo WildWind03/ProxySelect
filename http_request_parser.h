@@ -9,6 +9,7 @@
 #include <sstream>
 #include <iostream>
 #include "exception_invalid_http_data.h"
+#include "request_client.h"
 
 class http_request_parser {
     int request_type;
@@ -17,6 +18,8 @@ class http_request_parser {
     int minor_version;
     std::string host;
 
+    std::string request_type_str;
+
 public:
     const static int GET_REQUEST = 0;
     const static int OTHER_REQUEST = 1;
@@ -24,7 +27,6 @@ public:
     http_request_parser(const char* request) {
         std::stringstream stringstream(request);
 
-        std::string request_type_str;
         stringstream >> request_type_str;
         if (request_type_str == "GET") {
             request_type = GET_REQUEST;
@@ -69,6 +71,10 @@ public:
             throw exception_invalid_http_data("Invalid request");
         }
 
+    }
+
+    std::string get_request_type_str() {
+        return request_type_str;
     }
 
     int get_request_type() {

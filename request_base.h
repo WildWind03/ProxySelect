@@ -69,6 +69,10 @@ public:
 
     virtual request_enum exec() = 0;
 
+    virtual ~request_base() {
+
+    }
+
 };
 
 #endif //PROXY_BASE_REQUEST_H

@@ -88,7 +88,6 @@ public:
 
             if (-1 == count_of_send_data) {
                 logger1 -> log("Error while writng");
-                cached_data1 -> is_error = true;
                 throw exception_write_to_server("Error while writing");
             }
 
@@ -108,7 +107,6 @@ public:
 
             if (-1 == count_of_received_bytes) {
                 logger1 -> log ("Error while receiving data");
-                cached_data1 -> is_error = true;
                 throw exception_read_from_server("Error while receiving data");
             }
 

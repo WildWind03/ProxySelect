@@ -108,7 +108,7 @@ public:
                         }
                         default:
                             //logger1 -> log ("Type of request is not GET");
-                            throw exception_not_supported_request("Type of request is not GET");
+                            throw exception_not_supported_request("Type of request is not GET | " + http_parser1.get_request_type_str());
                     }
                // }
             } else {
