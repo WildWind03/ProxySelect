@@ -8,7 +8,7 @@
 #include "request_base.h"
 #include "exception_too_much_data.h"
 #include "exception_connection_closed_while_sending_request.h"
-#include "exception_read.h"
+#include "exception_read_from_browser.h"
 #include "http_request_parser.h"
 #include "exception_not_supported_request.h"
 #include "cached_data.h"
@@ -61,16 +61,17 @@ public:
 
             if (-1 == count_of_received_bytes) {
                 logger1 -> log("Error while receiving data");
-                throw exception_read("Error while receiving data");
+                throw exception_read_from_browser("Error while receiving data");
             }
 
             current_pos_in_request += count_of_received_bytes;
 
             if (0 == count_of_received_bytes) {
-                logger1 -> log("The connection is closed");
-                throw exception_connection_closed_while_sending_request(
+                //logger1 -> log("The connection is closed");
+                throw exception_read_from_browser(
                         "The connection with " + get_ip() + ":" + std::to_string(get_port()) + " is closed");
             }
+            
             if (is_finished_request(count_of_received_bytes, current_pos_in_request, request)) {
                 std::string handled_request = request;
                 free(request);
@@ -99,7 +100,7 @@ public:
                     int request_type = http_parser1.get_request_type();
                     switch (request_type) {
                         case http_request_parser::GET_REQUEST : {
-                            logger1->log("The GET request is got from client!");
+                            //logger1->log("The GET request is got from client!");
                             delete logger1;
 
                             logger1 = new logger("client", "/home/alexander/ClionProjects/Proxy/log/" + url_util::get_logger_filename_by_url(url));
@@ -107,7 +108,7 @@ public:
                             return request_enum::READ_FROM_CLIENT_FINISHED;
                         }
                         default:
-                            logger1 -> log ("Type of request is not GET");
+                            //logger1 -> log ("Type of request is not GET");
                             throw exception_not_supported_request("Type of request is not GET");
                     }
                // }
@@ -115,12 +116,12 @@ public:
                 return request_enum::READ;
             }
         } else {
-            //todo FIX_SIGPIPE_BUGS
             auto data = cache;
             ssize_t count_of_sent_chars = send(get_socket(), data -> get_data_to_read(get_socket()), data -> get_count_of_bytes_that_can_be_read(get_socket()), MSG_NOSIGNAL);
 
             if (-1 == count_of_sent_chars) {
-                throw exception_connection_closed_while_receiving_response("The client is connected!");
+                logger1 -> log("Error while sending data to browser");
+                throw exception_connection_closed_while_receiving_response("The browser is disconnected! URL - " + get_url());
             }
 
             logger1 -> log (std::to_string(count_of_sent_chars) + " was sent to the browser");

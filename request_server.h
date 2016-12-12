@@ -13,7 +13,9 @@
 #include <iostream>
 #include "request_base.h"
 #include "exception_can_not_connect.h"
-#include "exception_write.h"
+#include "exception_write_to_browser.h"
+#include "exception_write_to_server.h"
+#include "exception_read_from_server.h"
 
 class request_server : public request_base {
     std::string request;
@@ -68,11 +70,11 @@ public:
             int result;
             socklen_t result_len = sizeof(result);
             if (getsockopt(get_socket(), SOL_SOCKET, SO_ERROR, &result, &result_len) < 0) {
-                throw exception_can_not_connect("Can not connect to server");
+                throw exception_can_not_connect("Can not connect to server " + get_url());
             }
 
             if (result != 0) {
-                throw exception_can_not_connect("Can not connect to server");
+                throw exception_can_not_connect("Can not connect to server" + get_url());
             }
 
             is_connected = true;
@@ -87,7 +89,8 @@ public:
 
             if (-1 == count_of_send_data) {
                 logger1 -> log("Error while writng");
-                throw exception_write("Error while writing");
+                cached_data1 -> is_error = true;
+                throw exception_write_to_server("Error while writing");
             }
 
             pos_in_sending_data += count_of_send_data;
@@ -106,7 +109,8 @@ public:
 
             if (-1 == count_of_received_bytes) {
                 logger1 -> log ("Error while receiving data");
-                throw exception_read("Error while receiving data");
+                cached_data1 -> is_error = true;
+                throw exception_read_from_server("Error while receiving data");
             }
 
             if (0 == count_of_received_bytes) {

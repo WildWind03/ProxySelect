@@ -30,9 +30,11 @@ public:
 
     virtual void delete_observer(int key) {
         observers.erase(key);
-
-        std::cout << "Erased" << std::endl;
     }
+
+    std::map<int, observer*> get_observers() {
+        return observers;
+    };
 };
 
 #endif //PROXY_OBSERVABLE_H

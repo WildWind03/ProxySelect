@@ -8,22 +8,22 @@
 #include <string>
 #include <exception>
 
-class exception_read : public std::exception {
+class exception_read_from_browser : public std::exception {
     std::string error;
 
 public:
-    exception_read(std::string string) : error(string) {
+    exception_read_from_browser(std::string string) : error(string) {
 
     }
 
-    exception_read & operator= (const exception_read & except) = delete;
-    exception_read() = delete;
+    exception_read_from_browser & operator= (const exception_read_from_browser & except) = delete;
+    exception_read_from_browser() = delete;
 
     virtual const char* what() const _GLIBCXX_USE_NOEXCEPT override {
             return error.c_str();
     }
 
-    virtual ~exception_read() {
+    virtual ~exception_read_from_browser() {
 
     }
 };

@@ -21,10 +21,11 @@ class cached_data : public observable {
     observer *server_observer;
 
 public:
-    const static size_t MAX_CAPACITY_OF_CACHE_RECORD = 5 * 1024 * 1024;
+    const static size_t MAX_CAPACITY_OF_CACHE_RECORD = 8;
 
     bool is_finished = false;
     bool is_streaming = false;
+    bool is_error = false;
 
     virtual void add_new_observer(observer *observer1, int key) override {
         observable::add_new_observer(observer1, key);
@@ -40,14 +41,17 @@ public:
             min_pos_in_cache_record = get_min_pos_of_users();
 
             if (min_pos_in_cache_record == MAX_CAPACITY_OF_CACHE_RECORD) {
-                min_pos_in_cache_record = 0;
-                length = 0;
 
-                notify(event_type::DISABLE_READ);
-                server_observer->update(event_type::ENABLE_WRITE);
+                if (!is_finished) {
+                    min_pos_in_cache_record = 0;
+                    length = 0;
 
-                for (auto &iter : pos_in_cache) {
-                    iter.second = 0;
+                    notify(event_type::DISABLE_READ);
+                    server_observer->update(event_type::ENABLE_WRITE);
+
+                    for (auto &iter : pos_in_cache) {
+                        iter.second = 0;
+                    }
                 }
             }
         }
