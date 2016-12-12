@@ -275,21 +275,23 @@ std::string proxy_server::hostname_to_ip(std::string host) {
 }
 
 void proxy_server::onRequestSatisfied(request_client* request_client1) {
-    auto iter = storage.begin();
+    cached_data *cached_data1 = request_client1->get_cached_data();
+    cached_data1->delete_observer(request_client1->get_socket());
 
-    while (iter != storage.end()) {
-        if (iter -> second->is_streaming && (0 == iter -> second->get_count_of_clients()) && iter -> second->is_finished) {
-            storage.erase(iter);
-            iter = storage.begin();
-            continue;
+    if (cached_data1->is_streaming && 0 == cached_data1->get_count_of_clients()) {
+        auto iter = storage.begin();
+
+        while (iter != storage.end()) {
+            if (iter.operator*().second == request_client1->get_cached_data()) {
+                storage.erase(iter);
+                break;
+            }
+
+            iter++;
         }
-
-        iter++;
     }
 
-    close(request_client1->get_socket());
-    requests.erase(request_client1->get_socket());
-    delete request_client1;
+    delete_request(request_client1);
 }
 
 void proxy_server::onRequestPassedToServer(request_server *request_server1) {
@@ -299,19 +301,21 @@ void proxy_server::onRequestPassedToServer(request_server *request_server1) {
 void proxy_server::onResponseReceivedFromServer(request_server *request_server1) {
     auto iter = storage.begin();
 
-    while (iter != storage.end()) {
-        if (iter -> second->is_streaming && (0 == iter -> second->get_count_of_clients()) && iter -> second->is_finished) {
-            storage.erase(iter);
-            iter = storage.begin();
-            continue;
-        }
+    if (request_server1->get_cached_data()->is_streaming &&
+            (0 == request_server1->get_cached_data()->get_count_of_clients())) {
+            while (iter != storage.end()) {
+                if (((request_server *) iter.operator*().second->get_server_observer()) == request_server1) {
+                    delete_record_from_cache(request_server1->get_cached_data());
+                    delete request_server1->get_cached_data();
+                    break;
+                }
 
-        iter++;
+                iter++;
+        }
     }
 
-    close(request_server1 -> get_socket());
-    requests.erase(request_server1 -> get_socket());
-    delete request_server1;
+
+    delete_request(request_server1);
 }
 
 void proxy_server::delete_record_from_cache(cached_data *cached_data1) {
@@ -334,16 +338,6 @@ void proxy_server::delete_all_clients_connected_to_cache_data(cached_data *cache
         cached_data1->get_observers().erase(it++);    // or "it = m.erase(it)" since C++11
         delete_request(request_client1);
     }
-
-
-    /*while (iter != cached_data1->get_observers().end()) {
-        request_client *request_client1 = (request_client*) iter.operator*().second;
-        requests.erase(request_client1->get_socket());
-        close(request_client1->get_socket());
-        delete request_client1;
-        iter++;
-    }
-     */
 }
 
 void proxy_server::delete_request(request_base *base_request1) {

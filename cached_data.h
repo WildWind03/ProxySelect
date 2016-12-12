@@ -58,6 +58,10 @@ public:
 
     }
 
+    observer* get_server_observer() {
+        return server_observer;
+    }
+
     cached_data() {
         data = (char*) malloc (MAX_CAPACITY_OF_CACHE_RECORD);
     }
