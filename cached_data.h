@@ -9,6 +9,7 @@
 #include <cstddef>
 #include <vector>
 #include "observable.h"
+#include "exception_useless_cache_record.h"
 
 class cached_data : public observable {
 
@@ -21,7 +22,7 @@ class cached_data : public observable {
     observer *server_observer;
 
 public:
-    const static size_t MAX_CAPACITY_OF_CACHE_RECORD = 100 * 1024 * 1024;
+    const static size_t MAX_CAPACITY_OF_CACHE_RECORD = 3 * 1024 * 1024;
 
     bool is_finished = false;
     bool is_streaming = false;
@@ -140,6 +141,10 @@ public:
 
         if ((this -> length >= MAX_CAPACITY_OF_CACHE_RECORD) && !is_streaming) {
             this -> is_streaming = true;
+
+            if (0 == get_count_of_clients()) {
+                throw exception_useless_cache_record("Cache records is useless");
+            }
         }
 
         if (this -> length >= MAX_CAPACITY_OF_CACHE_RECORD) {

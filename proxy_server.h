@@ -25,7 +25,7 @@ class proxy_server {
     void onRequestPassedToServer(request_server *request_server1);
     void onResponseReceivedFromServer(request_server *request_server1);
 
-    std::string hostname_to_ip(std::string string);
+    addrinfo* hostname_to_addrinfo(std::string string);
     void delete_record_from_cache(cached_data *cached_data1);
     void delete_all_clients_connected_to_cache_data(cached_data *cached_data1);
     void delete_request(request_base* base_request1);

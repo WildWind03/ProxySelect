@@ -204,16 +204,22 @@ void proxy_server::start() {
 
                         cached_data1->delete_observer(request_client1 -> get_socket());
 
-                        if (cached_data1->is_finished) {
-                            if (cached_data1->is_streaming) {
-                                if (0 == cached_data1->get_count_of_clients()) {
-                                    delete_record_from_cache(cached_data1);
-                                    delete cached_data1;
-                                }
+                        if (cached_data1->is_streaming) {
+                            if (0 == cached_data1->get_count_of_clients()) {
+                                delete_record_from_cache(cached_data1);
+                                request_server *request_server1 = (request_server*) cached_data1->get_server_observer();
+                                delete_request(request_server1);
+
+                                delete cached_data1;
                             }
                         }
 
                         delete_request(request_client1);
+                    } catch (exception_useless_cache_record & exception_useless_cache_record1) {
+                        request_server *request_client1 = (request_server*) base_request1;
+                        delete_record_from_cache(request_client1->get_cached_data());
+                        delete request_client1 -> get_cached_data();
+                        delete_request(base_request1);
                     }
                 }
         }
@@ -244,19 +250,21 @@ void proxy_server::onGetRequestReceived(request_client *request_client1) {
     if (nullptr == cached_data1) {
         request_client1 -> log("There is no appropriate record in the cache");
 
-        cached_data1 = new cached_data();
+        struct addrinfo *addrinfo1 = hostname_to_addrinfo(request_client1->get_host());
 
-        int server_socket_fd = socket(AF_INET, SOCK_STREAM, 0);
+        int server_socket_fd = socket(addrinfo1 -> ai_family, addrinfo1 -> ai_socktype, addrinfo1 -> ai_protocol);
         if (-1 == server_socket_fd) {
             request_client1 -> log("Can not create socket to server");
-            return;
+            throw exception_invalid_http_data("Can not create socket");
         }
 
-        std::string ip = hostname_to_ip(request_client1 -> get_host());
+        //std::string ip = hostname_to_ip(request_client1 -> get_host());
 
-        request_client1 -> log("IP is " + ip);
+        cached_data1 = new cached_data();
 
-        request_server *server_request1 = new request_server(server_socket_fd, ip, HTTP_PORT, request_client1 -> get_request(), request_client1 -> get_size_of_request(), cached_data1, request_client1 -> get_url());
+        //request_client1 -> log("IP is " + ip);
+
+        request_server *server_request1 = new request_server(server_socket_fd, addrinfo1, HTTP_PORT, request_client1 -> get_request(), request_client1 -> get_size_of_request(), cached_data1, request_client1 -> get_url());
         requests.insert(std::pair<int, request_base*>(server_socket_fd, server_request1));
         storage.insert(std::pair<std::string, cached_data*> (request_client1->get_url(), cached_data1));
 
@@ -269,7 +277,7 @@ void proxy_server::onGetRequestReceived(request_client *request_client1) {
     request_client1 -> change_to_write_mode(cached_data1);
 }
 
-std::string proxy_server::hostname_to_ip(std::string host) {
+addrinfo* proxy_server::hostname_to_addrinfo(std::string host) {
     addrinfo hints;
     memset (&hints, 0, sizeof(hints));
 
@@ -277,14 +285,18 @@ std::string proxy_server::hostname_to_ip(std::string host) {
     hints.ai_socktype = SOCK_STREAM;
 
     addrinfo *res;
+
+    int status;
+
+    if ((status = getaddrinfo(host.c_str(), "http", &hints, &res)) == -1) {
+        std::cout << "Can not resolve hostname" << std::endl;
+        freeaddrinfo(res);
+        throw exception_invalid_http_data("Can not resolve hostname");
+    }
+
+    return res;
+
     getaddrinfo(host.c_str(), "http", &hints, &res);
-
-    char ip_address[50];
-    getnameinfo(res->ai_addr, res->ai_addrlen, ip_address, NI_MAXHOST, NULL, 0, NI_NUMERICHOST);
-
-    freeaddrinfo(res);
-
-    return std::string(ip_address);
 }
 
 void proxy_server::onRequestSatisfied(request_client* request_client1) {

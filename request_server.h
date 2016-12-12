@@ -30,7 +30,7 @@ class request_server : public request_base {
     bool is_connected;
 
 public:
-    request_server(int socket_fd, std::string ip, int port, std::string request, size_t size, cached_data* cached_data2, std::string url) : request_base(socket_fd, port, ip) {
+    request_server(int socket_fd, addrinfo *addrinfo1, int port, std::string request, size_t size, cached_data* cached_data2, std::string url) : request_base(socket_fd, port, "127.0.0.1") {
         is_connected = false;
 
         this -> url = url;
@@ -42,13 +42,6 @@ public:
         this -> request_size = size;
         this -> cached_data1 = cached_data2;
 
-        struct sockaddr_in sockaddr_in1;
-        sockaddr_in1.sin_family = AF_INET;
-        sockaddr_in1.sin_port = htons(port);
-        sockaddr_in1.sin_addr.s_addr = inet_addr(ip.c_str());
-
-        log(ip.c_str());
-
         bool is_socket_block_mode = url_util::set_socket_blocking_enabled(socket_fd, false);
 
         if (!is_socket_block_mode) {
@@ -56,7 +49,8 @@ public:
         }
 
         log("Start connect");
-        int connect_result = connect(socket_fd, (struct sockaddr *) &sockaddr_in1, sizeof(sockaddr_in1));
+        int connect_result = connect(socket_fd, addrinfo1 -> ai_addr, addrinfo1 -> ai_addrlen);
+        free(addrinfo1);
 
         if (0 == connect_result) {
             is_connected = true;
