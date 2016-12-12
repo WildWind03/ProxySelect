@@ -7,6 +7,7 @@
 #include <unistd.h>
 #include <csignal>
 #include <netdb.h>
+#include <cstring>
 
 #include "proxy_server.h"
 #include "exception_proxy_not_created.h"
@@ -74,6 +75,7 @@ void proxy_server::start() {
 
         poll_fds[0].events = POLLIN;
         poll_fds[0].fd = socket_fd;
+        poll_fds[0].revents = 0;
 
         size_t current_pos = 1;
         for (auto & iter : requests) {
@@ -140,7 +142,7 @@ void proxy_server::start() {
                             }
                         }
 
-                    } catch (exception_connection_closed & exception) {
+                    } catch (exception_connection_closed_while_sending_request & exception) {
                         std::cout << exception.what() << std::endl;
                         close(base_request1->get_socket());
                         delete base_request1;
@@ -160,6 +162,17 @@ void proxy_server::start() {
                         close(base_request1->get_socket());
                         delete base_request1;
                         requests.erase(poll_fds[i].fd);
+                    } catch (exception_connection_closed_while_receiving_response & exception_connection_closed_while_receiving_response1) {
+                        request_client *request_client1 = (request_client*) base_request1;
+
+                        std::cout << exception_connection_closed_while_receiving_response1.what() << std::endl;
+                        cached_data* cached_data1 = request_client1 -> get_cached_data();
+                        cached_data1->delete_observer(request_client1 -> get_socket());
+                        requests.erase(request_client1 -> get_socket());
+                        close(request_client1 -> get_socket());
+                        delete base_request1;
+                    } catch (exception_read & read_exception) {
+                        //todo handle -1 from server
                     }
                 }
         }
@@ -200,6 +213,8 @@ void proxy_server::onGetRequestReceived(request_client *request_client1) {
 
         std::string ip = hostname_to_ip(request_client1 -> get_host());
 
+        request_client1 -> log("IP is " + ip);
+
         request_server *server_request1 = new request_server(server_socket_fd, ip, HTTP_PORT, request_client1 -> get_request(), request_client1 -> get_size_of_request(), cached_data1, request_client1 -> get_url());
         requests.insert(std::pair<int, request_base*>(server_socket_fd, server_request1));
         storage.insert(std::pair<std::string, cached_data*> (request_client1->get_url(), cached_data1));
@@ -214,8 +229,15 @@ void proxy_server::onGetRequestReceived(request_client *request_client1) {
 }
 
 std::string proxy_server::hostname_to_ip(std::string host) {
+    addrinfo hints;
+    memset (&hints, 0, sizeof(hints));
+
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
+
     addrinfo *res;
-    getaddrinfo(host.c_str(), NULL, NULL, &res);
+    getaddrinfo(host.c_str(), "http", &hints, &res);
+
     char ip_address[50];
     getnameinfo(res->ai_addr, res->ai_addrlen, ip_address, NI_MAXHOST, NULL, 0, NI_NUMERICHOST);
 

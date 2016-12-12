@@ -28,8 +28,10 @@ public:
         observers.insert(std::pair<int, observer*> (key, observer1));
     }
 
-    void delete_observer(int key) {
+    virtual void delete_observer(int key) {
         observers.erase(key);
+
+        std::cout << "Erased" << std::endl;
     }
 };
 

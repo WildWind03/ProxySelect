@@ -21,7 +21,7 @@ class cached_data : public observable {
     observer *server_observer;
 
 public:
-    const static size_t MAX_CAPACITY_OF_CACHE_RECORD = 10 * 1024 * 1024;
+    const static size_t MAX_CAPACITY_OF_CACHE_RECORD = 5 * 1024 * 1024;
 
     bool is_finished = false;
     bool is_streaming = false;
@@ -32,8 +32,42 @@ public:
         min_pos_in_cache_record = 0;
     }
 
+    virtual void delete_observer(int key) override {
+        observable::delete_observer(key);
+        pos_in_cache.erase(key);
+
+        if (is_streaming) {
+            min_pos_in_cache_record = get_min_pos_of_users();
+
+            if (min_pos_in_cache_record == MAX_CAPACITY_OF_CACHE_RECORD) {
+                min_pos_in_cache_record = 0;
+                length = 0;
+
+                notify(event_type::DISABLE_READ);
+                server_observer->update(event_type::ENABLE_WRITE);
+
+                for (auto &iter : pos_in_cache) {
+                    iter.second = 0;
+                }
+            }
+        }
+
+    }
+
     cached_data() {
         data = (char*) malloc (MAX_CAPACITY_OF_CACHE_RECORD);
+    }
+
+    size_t get_min_pos_of_users() {
+        size_t min = MAX_CAPACITY_OF_CACHE_RECORD;
+        for (auto &iter : pos_in_cache) {
+            size_t possible_new_min = iter.second;
+            if (possible_new_min < min) {
+                min = possible_new_min;
+            }
+        }
+
+        return min;
     }
 
     char* get_data_to_write() {
@@ -57,13 +91,7 @@ public:
         *pos += count_of_read_bytes;
 
         if (is_streaming) {
-            size_t min = MAX_CAPACITY_OF_CACHE_RECORD;
-            for (auto &iter : pos_in_cache) {
-                size_t possible_new_min = iter.second;
-                if (possible_new_min < min) {
-                    min = possible_new_min;
-                }
-            }
+            size_t min = get_min_pos_of_users();
 
             if (min > min_pos_in_cache_record) {
                 min_pos_in_cache_record = min;

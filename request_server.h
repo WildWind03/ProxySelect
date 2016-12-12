@@ -46,6 +46,8 @@ public:
         sockaddr_in1.sin_port = htons(port);
         sockaddr_in1.sin_addr.s_addr = inet_addr(ip.c_str());
 
+        log(ip.c_str());
+
         bool is_socket_block_mode = url_util::set_socket_blocking_enabled(socket_fd, false);
 
         if (!is_socket_block_mode) {

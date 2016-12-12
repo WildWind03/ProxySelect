@@ -7,13 +7,14 @@
 
 #include "request_base.h"
 #include "exception_too_much_data.h"
-#include "exception_connection_closed.h"
+#include "exception_connection_closed_while_sending_request.h"
 #include "exception_read.h"
 #include "http_request_parser.h"
 #include "exception_not_supported_request.h"
 #include "cached_data.h"
 #include "logger.h"
 #include "url_util.h"
+#include "exception_connection_closed_while_receiving_response.h"
 
 #include <string>
 #include <sys/socket.h>
@@ -67,7 +68,7 @@ public:
 
             if (0 == count_of_received_bytes) {
                 logger1 -> log("The connection is closed");
-                throw exception_connection_closed(
+                throw exception_connection_closed_while_sending_request(
                         "The connection with " + get_ip() + ":" + std::to_string(get_port()) + " is closed");
             }
             if (is_finished_request(count_of_received_bytes, current_pos_in_request, request)) {
@@ -118,9 +119,8 @@ public:
             auto data = cache;
             ssize_t count_of_sent_chars = send(get_socket(), data -> get_data_to_read(get_socket()), data -> get_count_of_bytes_that_can_be_read(get_socket()), MSG_NOSIGNAL);
 
-            std::cout << count_of_sent_chars << std::endl;
             if (-1 == count_of_sent_chars) {
-                std::cerr << "STOP";
+                throw exception_connection_closed_while_receiving_response("The client is connected!");
             }
 
             logger1 -> log (std::to_string(count_of_sent_chars) + " was sent to the browser");
